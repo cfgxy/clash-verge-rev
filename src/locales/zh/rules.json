@@ -5,10 +5,14 @@
       "dialogTitle": "规则集合",
       "actions": {
         "updateAll": "更新全部",
-        "update": "更新"
+        "update": "更新",
+        "add": "新增规则集"
       }
     },
-    "title": "规则"
+    "title": "规则",
+    "actions": {
+      "editRules": "编辑规则"
+    }
   },
   "feedback": {
     "notifications": {
@@ -17,7 +21,15 @@
         "updateFailed": "{{name}} 更新失败: {{message}}",
         "genericError": "更新失败: {{message}}",
         "none": "没有可更新的规则集合",
-        "allUpdated": "所有规则集合均已更新"
+        "allUpdated": "所有规则集合均已更新",
+        "addSuccess": "规则集 {{name}} 添加成功",
+        "addFailed": "添加规则集失败: {{message}}",
+        "editSuccess": "规则集 {{name}} 更新成功",
+        "editFailed": "更新规则集失败: {{message}}",
+        "deleteSuccess": "规则集 {{name}} 删除成功",
+        "deleteFailed": "删除规则集失败: {{message}}",
+        "deleteBlockedByReference": "规则集 {{name}} 仍被当前订阅之外的 {{count}} 条规则引用，无法删除",
+        "nameDuplicate": "已存在名为 {{name}} 的规则集"
       }
     }
   },
@@ -77,6 +89,45 @@
         "MATCH": "匹配所有请求 (MATCH)"
       },
       "title": "编辑规则"
+    },
+    "provider": {
+      "titleAdd": "新增规则集",
+      "titleEdit": "编辑规则集",
+      "form": {
+        "labels": {
+          "name": "名称",
+          "type": "来源类型",
+          "behavior": "行为模式",
+          "url": "URL",
+          "path": "本地路径",
+          "interval": "更新间隔（秒）"
+        },
+        "options": {
+          "type": {
+            "http": "远程订阅（http）",
+            "file": "本地文件"
+          },
+          "behavior": {
+            "domain": "域名（domain）",
+            "ipcidr": "IP 段（ipcidr）",
+            "classical": "经典（classical）"
+          }
+        },
+        "validation": {
+          "nameRequired": "名称不能为空",
+          "urlRequired": "远程规则集必须填写 URL",
+          "pathRequired": "本地规则集必须填写路径",
+          "nameDuplicate": "已存在同名规则集"
+        }
+      }
+    },
+    "deleteProvider": {
+      "title": "删除规则集",
+      "messageNoReference": "确认删除规则集「{{name}}」？此操作不可撤销。",
+      "messageWithReference": "当前订阅中有 {{count}} 条规则引用了「{{name}}」，直接删除会导致这些规则失效。",
+      "actions": {
+        "clearAndDelete": "清空引用规则后删除"
+      }
     }
   }
 }

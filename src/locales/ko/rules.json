@@ -5,10 +5,14 @@
       "dialogTitle": "규칙 제공자",
       "actions": {
         "updateAll": "모두 업데이트",
-        "update": "업데이트"
+        "update": "업데이트",
+        "add": "New Rule Set"
       }
     },
-    "title": "규칙"
+    "title": "규칙",
+    "actions": {
+      "editRules": "Edit Rules"
+    }
   },
   "feedback": {
     "notifications": {
@@ -17,7 +21,15 @@
         "updateFailed": "{{name}} 업데이트 실패: {{message}}",
         "genericError": "업데이트 실패: {{message}}",
         "none": "업데이트할 제공자가 없습니다",
-        "allUpdated": "모든 제공자가 업데이트되었습니다"
+        "allUpdated": "모든 제공자가 업데이트되었습니다",
+        "addSuccess": "Rule set {{name}} added successfully",
+        "addFailed": "Failed to add rule set: {{message}}",
+        "editSuccess": "Rule set {{name}} updated successfully",
+        "editFailed": "Failed to update rule set: {{message}}",
+        "deleteSuccess": "Rule set {{name}} deleted successfully",
+        "deleteFailed": "Failed to delete rule set: {{message}}",
+        "deleteBlockedByReference": "Rule set {{name}} is still referenced by {{count}} rule(s) outside the current subscription and cannot be deleted",
+        "nameDuplicate": "A rule set named {{name}} already exists"
       }
     }
   },
@@ -77,6 +89,45 @@
         "MATCH": "모든 요청과 일치"
       },
       "title": "규칙 편집"
+    },
+    "provider": {
+      "titleAdd": "New Rule Set",
+      "titleEdit": "Edit Rule Set",
+      "form": {
+        "labels": {
+          "name": "Name",
+          "type": "Source Type",
+          "behavior": "Behavior",
+          "url": "URL",
+          "path": "Path",
+          "interval": "Update Interval (seconds)"
+        },
+        "options": {
+          "type": {
+            "http": "Remote (http)",
+            "file": "Local File"
+          },
+          "behavior": {
+            "domain": "Domain",
+            "ipcidr": "IP-CIDR",
+            "classical": "Classical"
+          }
+        },
+        "validation": {
+          "nameRequired": "Name is required",
+          "urlRequired": "URL is required for a remote rule set",
+          "pathRequired": "Path is required for a local rule set",
+          "nameDuplicate": "A rule set with this name already exists"
+        }
+      }
+    },
+    "deleteProvider": {
+      "title": "Delete Rule Set",
+      "messageNoReference": "Delete rule set \"{{name}}\"? This cannot be undone.",
+      "messageWithReference": "{{count}} rule(s) in the current subscription reference \"{{name}}\". Deleting it now would leave those rules broken.",
+      "actions": {
+        "clearAndDelete": "Clear References and Delete"
+      }
     }
   }
 }

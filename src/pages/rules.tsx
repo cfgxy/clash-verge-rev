@@ -1,4 +1,5 @@
-import { Box } from '@mui/material'
+import { EditOutlined } from '@mui/icons-material'
+import { Box, Button } from '@mui/material'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -10,8 +11,10 @@ import {
   type VirtualListHandle,
 } from '@/components/base'
 import { ScrollTopButton } from '@/components/layout/scroll-top-button'
+import { RulesEditorViewer } from '@/components/profile/rules-editor-viewer'
 import { ProviderButton } from '@/components/rule/provider-button'
 import RuleItem from '@/components/rule/rule-item'
+import { useProfiles } from '@/hooks/use-profiles'
 import { useVisibility } from '@/hooks/use-visibility'
 import { useAppRefreshers, useRulesData } from '@/providers/app-data-context'
 
@@ -19,10 +22,13 @@ const RulesPage = () => {
   const { t } = useTranslation()
   const { rules = [] } = useRulesData()
   const { refreshRules, refreshRuleProviders } = useAppRefreshers()
+  const { current } = useProfiles()
   const [match, setMatch] = useState(() => (_: string) => true)
   const virtuosoRef = useRef<VirtualListHandle>(null)
   const [showScrollTop, setShowScrollTop] = useState(false)
+  const [editRulesOpen, setEditRulesOpen] = useState(false)
   const pageVisible = useVisibility()
+  const canEditRules = Boolean(current?.option?.rules)
 
   // 在组件挂载时和页面获得焦点时刷新规则数据
   useEffect(() => {
@@ -65,6 +71,16 @@ const RulesPage = () => {
       }}
       header={
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+          {canEditRules && (
+            <Button
+              variant="outlined"
+              size="small"
+              startIcon={<EditOutlined />}
+              onClick={() => setEditRulesOpen(true)}
+            >
+              {t('rules.page.actions.editRules')}
+            </Button>
+          )}
           <ProviderButton />
         </Box>
       }
@@ -96,6 +112,21 @@ const RulesPage = () => {
         </>
       ) : (
         <BaseEmpty />
+      )}
+
+      {current && editRulesOpen && (
+        <RulesEditorViewer
+          groupsUid={current.option?.groups ?? ''}
+          mergeUid={current.option?.merge ?? ''}
+          profileUid={current.uid}
+          property={current.option?.rules ?? ''}
+          open={editRulesOpen}
+          onClose={() => setEditRulesOpen(false)}
+          onSave={() => {
+            refreshRules()
+            refreshRuleProviders()
+          }}
+        />
       )}
     </BasePage>
   )

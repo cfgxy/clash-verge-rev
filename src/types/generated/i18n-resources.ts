@@ -609,8 +609,16 @@ export interface TranslationResources {
       feedback: {
         notifications: {
           provider: {
+            addFailed: string
+            addSuccess: string
             allUpdated: string
+            deleteBlockedByReference: string
+            deleteFailed: string
+            deleteSuccess: string
+            editFailed: string
+            editSuccess: string
             genericError: string
+            nameDuplicate: string
             none: string
             updateFailed: string
             updateSuccess: string
@@ -618,6 +626,14 @@ export interface TranslationResources {
         }
       }
       modals: {
+        deleteProvider: {
+          actions: {
+            clearAndDelete: string
+          }
+          messageNoReference: string
+          messageWithReference: string
+          title: string
+        }
         editor: {
           form: {
             actions: {
@@ -674,10 +690,45 @@ export interface TranslationResources {
           }
           title: string
         }
+        provider: {
+          form: {
+            labels: {
+              behavior: string
+              interval: string
+              name: string
+              path: string
+              type: string
+              url: string
+            }
+            options: {
+              behavior: {
+                classical: string
+                domain: string
+                ipcidr: string
+              }
+              type: {
+                file: string
+                http: string
+              }
+            }
+            validation: {
+              nameDuplicate: string
+              nameRequired: string
+              pathRequired: string
+              urlRequired: string
+            }
+          }
+          titleAdd: string
+          titleEdit: string
+        }
       }
       page: {
+        actions: {
+          editRules: string
+        }
         provider: {
           actions: {
+            add: string
             update: string
             updateAll: string
           }

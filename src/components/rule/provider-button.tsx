@@ -1,4 +1,10 @@
-import { RefreshRounded, StorageOutlined } from '@mui/icons-material'
+import {
+  AddRounded,
+  DeleteOutlineRounded,
+  EditOutlined,
+  RefreshRounded,
+  StorageOutlined,
+} from '@mui/icons-material'
 import {
   Box,
   Button,
@@ -21,9 +27,29 @@ import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { updateRuleProvider } from 'tauri-plugin-mihomo-api'
 
+import { DeleteProviderDialog } from '@/components/rule/delete-provider-dialog'
+import {
+  ProviderFormDialog,
+  ProviderFormValue,
+} from '@/components/rule/provider-form-dialog'
+import { useProfiles } from '@/hooks/use-profiles'
 import { useAppRefreshers, useRulesData } from '@/providers/app-data-context'
-import { syncRuntimeProviders } from '@/services/cmds'
+import {
+  readProfileFile,
+  saveProfileFile,
+  syncRuntimeProviders,
+} from '@/services/cmds'
 import { showNotice } from '@/services/notice-service'
+import {
+  findRuleProviderReferences,
+  planProviderDeletion,
+  removeRuleProvider,
+  resolveClearAndDelete,
+  RuleProviderConfig,
+  RuleProviderConfigMap,
+  upsertRuleProvider,
+} from '@/utils/rule-provider'
+import { readTopLevelValue, writeTopLevelValue } from '@/utils/yaml-top-level'
 
 const TypeBox = styled(Box)<{ component?: React.ElementType }>(({ theme }) => ({
   display: 'inline-block',
@@ -40,11 +66,136 @@ const TypeBox = styled(Box)<{ component?: React.ElementType }>(({ theme }) => ({
 export const ProviderButton = () => {
   const { t } = useTranslation()
   const [open, setOpen] = useState(false)
-  const { ruleProviders } = useRulesData()
+  const { rules, ruleProviders } = useRulesData()
   const { refreshRules, refreshRuleProviders } = useAppRefreshers()
+  const { current } = useProfiles()
   const [updating, setUpdating] = useState<Record<string, boolean>>({})
+  const [formTarget, setFormTarget] = useState<
+    { name: string; config: RuleProviderConfig } | 'add' | null
+  >(null)
+  const [deleteTarget, setDeleteTarget] = useState<string | null>(null)
+
+  const mergeUid = current?.option?.merge
+  const canManageProviders = Boolean(mergeUid)
 
   const hasProviders = Object.keys(ruleProviders || {}).length > 0
+
+  const loadMergeConfig = async () => {
+    const text = mergeUid ? await readProfileFile(mergeUid) : ''
+    const providers = readTopLevelValue<RuleProviderConfigMap>(
+      text,
+      'rule-providers',
+    )
+    const mergeRules = readTopLevelValue<string[]>(text, 'rules')
+    return { text, providers, mergeRules }
+  }
+
+  const handleSubmitProvider = async ({ name, config }: ProviderFormValue) => {
+    if (!mergeUid) return
+    const isEdit = formTarget !== 'add' && formTarget !== null
+    try {
+      const { text, providers } = await loadMergeConfig()
+      const nextProviders = upsertRuleProvider(providers, name, config)
+      const nextText = writeTopLevelValue(text, 'rule-providers', nextProviders)
+      const saved = await saveProfileFile(mergeUid, nextText)
+      if (!saved) throw new Error('save_profile_file rejected the document')
+
+      await refreshRules()
+      await refreshRuleProviders()
+      void syncRuntimeProviders()
+
+      showNotice.success(
+        isEdit
+          ? 'rules.feedback.notifications.provider.editSuccess'
+          : 'rules.feedback.notifications.provider.addSuccess',
+        { name },
+      )
+      setFormTarget(null)
+    } catch (err) {
+      showNotice.error(
+        isEdit
+          ? 'rules.feedback.notifications.provider.editFailed'
+          : 'rules.feedback.notifications.provider.addFailed',
+        { message: String(err) },
+      )
+    }
+  }
+
+  const handleDeleteProvider = useLockFn(async (name: string) => {
+    if (!mergeUid) return
+    const liveReferenceCount = findRuleProviderReferences(rules, name)
+    const plan = planProviderDeletion(liveReferenceCount)
+
+    if (!plan.requiresConfirmation) {
+      await performDelete(name)
+      return
+    }
+
+    setDeleteTarget(name)
+  })
+
+  /** `nextMergeRules` is only supplied when references were just cleared; omitting it leaves the merge file's own `rules:` key untouched. */
+  const performDelete = async (name: string, nextMergeRules?: string[]) => {
+    if (!mergeUid) return
+    try {
+      const { text, providers } = await loadMergeConfig()
+      let nextText = text
+      if (nextMergeRules !== undefined) {
+        nextText = writeTopLevelValue(
+          nextText,
+          'rules',
+          nextMergeRules.length > 0 ? nextMergeRules : undefined,
+        )
+      }
+      nextText = writeTopLevelValue(
+        nextText,
+        'rule-providers',
+        removeRuleProvider(providers, name),
+      )
+      const saved = await saveProfileFile(mergeUid, nextText)
+      if (!saved) throw new Error('save_profile_file rejected the document')
+
+      await refreshRules()
+      await refreshRuleProviders()
+      void syncRuntimeProviders()
+
+      showNotice.success(
+        'rules.feedback.notifications.provider.deleteSuccess',
+        {
+          name,
+        },
+      )
+    } catch (err) {
+      showNotice.error('rules.feedback.notifications.provider.deleteFailed', {
+        message: String(err),
+      })
+    }
+  }
+
+  const handleClearAndDelete = useLockFn(async () => {
+    const name = deleteTarget
+    if (!name) return
+    setDeleteTarget(null)
+
+    const { providers, mergeRules } = await loadMergeConfig()
+    const liveReferenceCount = findRuleProviderReferences(rules, name)
+    const outcome = resolveClearAndDelete(
+      mergeRules,
+      liveReferenceCount,
+      providers,
+      name,
+    )
+
+    if (!outcome.canDelete) {
+      showNotice.error(
+        'rules.feedback.notifications.provider.deleteBlockedByReference',
+        { name, count: liveReferenceCount },
+      )
+      return
+    }
+
+    await performDelete(name, outcome.nextRulesConfig)
+  })
 
   const updateProvider = useLockFn(async (name: string) => {
     try {
@@ -116,7 +267,29 @@ export const ProviderButton = () => {
     setOpen(false)
   }
 
-  if (!hasProviders) return null
+  const handleOpenEdit = async (name: string) => {
+    const { providers } = await loadMergeConfig()
+    const existing = providers?.[name]
+    const runtime = ruleProviders?.[name]
+    const config: RuleProviderConfig = existing ?? {
+      type:
+        typeof runtime?.vehicleType === 'string' &&
+        runtime.vehicleType === 'File'
+          ? 'file'
+          : 'http',
+      behavior:
+        typeof runtime?.behavior === 'string'
+          ? ((runtime.behavior.toLowerCase() === 'ipcidr'
+              ? 'ipcidr'
+              : runtime.behavior.toLowerCase() === 'classical'
+                ? 'classical'
+                : 'domain') as RuleProviderConfig['behavior'])
+          : 'classical',
+    }
+    setFormTarget({ name, config })
+  }
+
+  if (!hasProviders && !canManageProviders) return null
 
   return (
     <>
@@ -136,18 +309,31 @@ export const ProviderButton = () => {
               display: 'flex',
               justifyContent: 'space-between',
               alignItems: 'center',
+              gap: 1,
             }}
           >
             <Typography variant="h6">
               {t('rules.page.provider.dialogTitle')}
             </Typography>
-            <Button
-              variant="contained"
-              size="small"
-              onClick={updateAllProviders}
-            >
-              {t('rules.page.provider.actions.updateAll')}
-            </Button>
+            <Box sx={{ display: 'flex', gap: 1 }}>
+              {canManageProviders && (
+                <Button
+                  variant="outlined"
+                  size="small"
+                  startIcon={<AddRounded />}
+                  onClick={() => setFormTarget('add')}
+                >
+                  {t('rules.page.provider.actions.add')}
+                </Button>
+              )}
+              <Button
+                variant="contained"
+                size="small"
+                onClick={updateAllProviders}
+              >
+                {t('rules.page.provider.actions.updateAll')}
+              </Button>
+            </Box>
           </Box>
         </DialogTitle>
 
@@ -239,7 +425,7 @@ export const ProviderButton = () => {
                     <Divider orientation="vertical" flexItem />
                     <Box
                       sx={{
-                        width: 40,
+                        px: canManageProviders ? 1 : 0,
                         display: 'flex',
                         justifyContent: 'center',
                         alignItems: 'center',
@@ -264,6 +450,27 @@ export const ProviderButton = () => {
                       >
                         <RefreshRounded />
                       </IconButton>
+                      {canManageProviders && (
+                        <>
+                          <IconButton
+                            size="small"
+                            onClick={() => handleOpenEdit(key)}
+                            aria-label={t('shared.actions.edit')}
+                            title={t('shared.actions.edit')}
+                          >
+                            <EditOutlined fontSize="small" />
+                          </IconButton>
+                          <IconButton
+                            size="small"
+                            color="error"
+                            onClick={() => handleDeleteProvider(key)}
+                            aria-label={t('shared.actions.delete')}
+                            title={t('shared.actions.delete')}
+                          >
+                            <DeleteOutlineRounded fontSize="small" />
+                          </IconButton>
+                        </>
+                      )}
                     </Box>
                   </ListItem>
                 )
@@ -277,6 +484,29 @@ export const ProviderButton = () => {
           </Button>
         </DialogActions>
       </Dialog>
+
+      {canManageProviders && (
+        <ProviderFormDialog
+          open={formTarget !== null}
+          initialName={formTarget !== 'add' ? formTarget?.name : undefined}
+          initialConfig={formTarget !== 'add' ? formTarget?.config : undefined}
+          isNameTaken={(name) =>
+            Object.prototype.hasOwnProperty.call(ruleProviders ?? {}, name)
+          }
+          onClose={() => setFormTarget(null)}
+          onSubmit={handleSubmitProvider}
+        />
+      )}
+
+      {deleteTarget && (
+        <DeleteProviderDialog
+          open={deleteTarget !== null}
+          name={deleteTarget}
+          referenceCount={findRuleProviderReferences(rules, deleteTarget)}
+          onCancel={() => setDeleteTarget(null)}
+          onClearAndDelete={handleClearAndDelete}
+        />
+      )}
     </>
   )
 }
