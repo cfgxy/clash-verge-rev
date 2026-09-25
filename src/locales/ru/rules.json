@@ -5,10 +5,14 @@
       "dialogTitle": "Провайдеры правил",
       "actions": {
         "updateAll": "Обновить все",
-        "update": "Обновить"
+        "update": "Обновить",
+        "add": "New Rule Set"
       }
     },
-    "title": "Правила"
+    "title": "Правила",
+    "actions": {
+      "editRules": "Edit Rules"
+    }
   },
   "feedback": {
     "notifications": {
@@ -17,7 +21,17 @@
         "updateFailed": "Не удалось обновить {{name}}: {{message}}",
         "genericError": "Ошибка обновления: {{message}}",
         "none": "Нет доступных провайдеров для обновления",
-        "allUpdated": "Все провайдеры успешно обновлены"
+        "allUpdated": "Все провайдеры успешно обновлены",
+        "addSuccess": "Rule set {{name}} added successfully",
+        "addFailed": "Failed to add rule set: {{message}}",
+        "editSuccess": "Rule set {{name}} updated successfully",
+        "editFailed": "Failed to update rule set: {{message}}",
+        "deleteSuccess": "Rule set {{name}} deleted successfully",
+        "deleteFailed": "Failed to delete rule set: {{message}}",
+        "deleteBlockedByReference": "Rule set {{name}} is still referenced by {{count}} rule(s) outside the current subscription and cannot be deleted",
+        "deleteBlockedByLogicalRule": "Набор правил {{name}} используется в логическом правиле и не может быть удалён автоматически; сначала измените это правило",
+        "deleteOutOfScope": "Rule set {{name}} is defined outside the current subscription and cannot be deleted here",
+        "nameDuplicate": "A rule set named {{name}} already exists"
       }
     }
   },
@@ -77,6 +91,46 @@
         "MATCH": "MATCH"
       },
       "title": "Редактировать правила"
+    },
+    "provider": {
+      "titleAdd": "New Rule Set",
+      "titleEdit": "Edit Rule Set",
+      "form": {
+        "labels": {
+          "name": "Name",
+          "type": "Source Type",
+          "behavior": "Behavior",
+          "url": "URL",
+          "path": "Path",
+          "interval": "Update Interval (seconds)"
+        },
+        "options": {
+          "type": {
+            "http": "Remote (http)",
+            "file": "Local File"
+          },
+          "behavior": {
+            "domain": "Domain",
+            "ipcidr": "IP-CIDR",
+            "classical": "Classical"
+          }
+        },
+        "validation": {
+          "nameRequired": "Name is required",
+          "urlRequired": "URL is required for a remote rule set",
+          "pathRequired": "Path is required for a local rule set",
+          "nameDuplicate": "A rule set with this name already exists"
+        }
+      }
+    },
+    "deleteProvider": {
+      "title": "Delete Rule Set",
+      "messageNoReference": "Delete rule set \"{{name}}\"? This cannot be undone.",
+      "messageWithReference": "{{count}} rule(s) in the current subscription reference \"{{name}}\". Deleting it now would leave those rules broken.",
+      "warningDropsRuleOverride": "После удаления этих ссылок переопределение правил этой подписки станет пустым, и все правила вернутся к исходным правилам подписки.",
+      "actions": {
+        "clearAndDelete": "Clear References and Delete"
+      }
     }
   }
 }

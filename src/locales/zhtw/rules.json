@@ -5,10 +5,14 @@
       "dialogTitle": "規則集合",
       "actions": {
         "updateAll": "全部更新",
-        "update": "更新"
+        "update": "更新",
+        "add": "New Rule Set"
       }
     },
-    "title": "規則"
+    "title": "規則",
+    "actions": {
+      "editRules": "Edit Rules"
+    }
   },
   "feedback": {
     "notifications": {
@@ -17,7 +21,17 @@
         "updateFailed": "更新 {{name}} 失敗：{{message}}",
         "genericError": "更新失敗：{{message}}",
         "none": "沒有可更新的規則集合",
-        "allUpdated": "所有規則集合均已更新"
+        "allUpdated": "所有規則集合均已更新",
+        "addSuccess": "Rule set {{name}} added successfully",
+        "addFailed": "Failed to add rule set: {{message}}",
+        "editSuccess": "Rule set {{name}} updated successfully",
+        "editFailed": "Failed to update rule set: {{message}}",
+        "deleteSuccess": "Rule set {{name}} deleted successfully",
+        "deleteFailed": "Failed to delete rule set: {{message}}",
+        "deleteBlockedByReference": "Rule set {{name}} is still referenced by {{count}} rule(s) outside the current subscription and cannot be deleted",
+        "deleteBlockedByLogicalRule": "規則集 {{name}} 被邏輯規則引用，無法自動移除，請先修改該規則",
+        "deleteOutOfScope": "Rule set {{name}} is defined outside the current subscription and cannot be deleted here",
+        "nameDuplicate": "A rule set named {{name}} already exists"
       }
     }
   },
@@ -77,6 +91,46 @@
         "MATCH": "匹配所有請求 (MATCH)"
       },
       "title": "編輯規則"
+    },
+    "provider": {
+      "titleAdd": "New Rule Set",
+      "titleEdit": "Edit Rule Set",
+      "form": {
+        "labels": {
+          "name": "Name",
+          "type": "Source Type",
+          "behavior": "Behavior",
+          "url": "URL",
+          "path": "Path",
+          "interval": "Update Interval (seconds)"
+        },
+        "options": {
+          "type": {
+            "http": "Remote (http)",
+            "file": "Local File"
+          },
+          "behavior": {
+            "domain": "Domain",
+            "ipcidr": "IP-CIDR",
+            "classical": "Classical"
+          }
+        },
+        "validation": {
+          "nameRequired": "Name is required",
+          "urlRequired": "URL is required for a remote rule set",
+          "pathRequired": "Path is required for a local rule set",
+          "nameDuplicate": "A rule set with this name already exists"
+        }
+      }
+    },
+    "deleteProvider": {
+      "title": "Delete Rule Set",
+      "messageNoReference": "Delete rule set \"{{name}}\"? This cannot be undone.",
+      "messageWithReference": "{{count}} rule(s) in the current subscription reference \"{{name}}\". Deleting it now would leave those rules broken.",
+      "warningDropsRuleOverride": "清除這些引用後，本訂閱的規則覆寫將變為空，全部規則會回退到訂閱的原始規則。",
+      "actions": {
+        "clearAndDelete": "Clear References and Delete"
+      }
     }
   }
 }

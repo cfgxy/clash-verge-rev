@@ -5,10 +5,14 @@
       "dialogTitle": "Penyedia Aturan",
       "actions": {
         "updateAll": "Perbarui Semua",
-        "update": "Perbarui"
+        "update": "Perbarui",
+        "add": "New Rule Set"
       }
     },
-    "title": "Aturan"
+    "title": "Aturan",
+    "actions": {
+      "editRules": "Edit Rules"
+    }
   },
   "feedback": {
     "notifications": {
@@ -17,7 +21,17 @@
         "updateFailed": "Failed to update {{name}}: {{message}}",
         "genericError": "Update failed: {{message}}",
         "none": "No providers available to update",
-        "allUpdated": "All providers updated successfully"
+        "allUpdated": "All providers updated successfully",
+        "addSuccess": "Rule set {{name}} added successfully",
+        "addFailed": "Failed to add rule set: {{message}}",
+        "editSuccess": "Rule set {{name}} updated successfully",
+        "editFailed": "Failed to update rule set: {{message}}",
+        "deleteSuccess": "Rule set {{name}} deleted successfully",
+        "deleteFailed": "Failed to delete rule set: {{message}}",
+        "deleteBlockedByReference": "Rule set {{name}} is still referenced by {{count}} rule(s) outside the current subscription and cannot be deleted",
+        "deleteBlockedByLogicalRule": "Rule set {{name}} dirujuk oleh aturan logis dan tidak dapat dihapus otomatis; ubah dulu aturan tersebut",
+        "deleteOutOfScope": "Rule set {{name}} is defined outside the current subscription and cannot be deleted here",
+        "nameDuplicate": "A rule set named {{name}} already exists"
       }
     }
   },
@@ -77,6 +91,46 @@
         "MATCH": "Cocok dengan semua permintaan"
       },
       "title": "Ubah Aturan"
+    },
+    "provider": {
+      "titleAdd": "New Rule Set",
+      "titleEdit": "Edit Rule Set",
+      "form": {
+        "labels": {
+          "name": "Name",
+          "type": "Source Type",
+          "behavior": "Behavior",
+          "url": "URL",
+          "path": "Path",
+          "interval": "Update Interval (seconds)"
+        },
+        "options": {
+          "type": {
+            "http": "Remote (http)",
+            "file": "Local File"
+          },
+          "behavior": {
+            "domain": "Domain",
+            "ipcidr": "IP-CIDR",
+            "classical": "Classical"
+          }
+        },
+        "validation": {
+          "nameRequired": "Name is required",
+          "urlRequired": "URL is required for a remote rule set",
+          "pathRequired": "Path is required for a local rule set",
+          "nameDuplicate": "A rule set with this name already exists"
+        }
+      }
+    },
+    "deleteProvider": {
+      "title": "Delete Rule Set",
+      "messageNoReference": "Delete rule set \"{{name}}\"? This cannot be undone.",
+      "messageWithReference": "{{count}} rule(s) in the current subscription reference \"{{name}}\". Deleting it now would leave those rules broken.",
+      "warningDropsRuleOverride": "Setelah referensi ini dihapus, penggantian aturan langganan ini menjadi kosong sehingga semua aturan kembali ke aturan asli langganan.",
+      "actions": {
+        "clearAndDelete": "Clear References and Delete"
+      }
     }
   }
 }
