@@ -5,10 +5,12 @@ import {
   clearRuleReferences,
   findReferencingRuleLineIndices,
   findRuleProviderReferences,
+  findUnremovableReferenceLineIndices,
   isDuplicateProviderName,
   planProviderDeletion,
   removeRuleProvider,
   resolveClearAndDelete,
+  resolveDeclaredProviderConfig,
   upsertRuleProvider,
 } from './rule-provider'
 
@@ -35,6 +37,74 @@ describe('findRuleProviderReferences', () => {
     expect(findRuleProviderReferences(rules, 'cn')).toBe(1)
     expect(findRuleProviderReferences(rules, 'missing')).toBe(0)
     expect(findRuleProviderReferences(undefined, 'ads')).toBe(0)
+  })
+
+  test('counts logical rules that embed the provider in their payload', () => {
+    const rules = [
+      makeRule({
+        type: 'AND',
+        payload: '((RULE-SET,ads),(DST-PORT,443))',
+      }),
+      makeRule({ type: 'OR', payload: '((RULE-SET,cn),(GEOIP,CN))' }),
+    ]
+
+    expect(findRuleProviderReferences(rules, 'ads')).toBe(1)
+    expect(findRuleProviderReferences(rules, 'cn')).toBe(1)
+  })
+
+  test('does not count a provider whose name is only a prefix of the referenced one', () => {
+    const rules = [
+      makeRule({
+        type: 'AND',
+        payload: '((RULE-SET,ads-extra),(DST-PORT,443))',
+      }),
+    ]
+
+    expect(findRuleProviderReferences(rules, 'ads')).toBe(0)
+    expect(findRuleProviderReferences(rules, 'ads-extra')).toBe(1)
+  })
+})
+
+describe('resolveDeclaredProviderConfig', () => {
+  test('prefills from the layer that wins, keeping url/path/interval', () => {
+    const base = {
+      ads: {
+        type: 'http',
+        behavior: 'domain',
+        url: 'https://base/ads.yaml',
+        path: './ads.yaml',
+        interval: 86400,
+      },
+    }
+
+    expect(
+      resolveDeclaredProviderConfig([base, undefined, undefined], 'ads'),
+    ).toEqual({
+      type: 'http',
+      behavior: 'domain',
+      url: 'https://base/ads.yaml',
+      path: './ads.yaml',
+      interval: 86400,
+    })
+  })
+
+  test('a later layer overrides an earlier declaration of the same name', () => {
+    const base = {
+      ads: { type: 'http', behavior: 'domain', url: 'https://base' },
+    }
+    const global = {
+      ads: { type: 'http', behavior: 'classical', url: 'https://global' },
+    }
+
+    expect(
+      resolveDeclaredProviderConfig([base, undefined, global], 'ads'),
+    ).toEqual({ type: 'http', behavior: 'classical', url: 'https://global' })
+  })
+
+  test('returns undefined when no layer declares the provider', () => {
+    expect(
+      resolveDeclaredProviderConfig([{}, undefined], 'ads'),
+    ).toBeUndefined()
   })
 })
 
@@ -178,6 +248,48 @@ describe('resolveClearAndDelete', () => {
     const outcome = resolveClearAndDelete(mergeRulesConfig, 2, providers, 'ads')
 
     expect(outcome.canDelete).toBe(false)
+    expect(outcome.blocker).toBe('out-of-scope-reference')
     expect(outcome.nextProviders).toEqual(providers)
+  })
+
+  test('refuses deletion when a logical rule embeds the provider', () => {
+    const mergeRulesConfig = [
+      'AND,((RULE-SET,ads),(DST-PORT,443)),REJECT',
+      'MATCH,DIRECT',
+    ]
+    const providers = { ads: { type: 'http', behavior: 'domain' } as const }
+
+    expect(
+      findUnremovableReferenceLineIndices(mergeRulesConfig, 'ads'),
+    ).toEqual([0])
+
+    const outcome = resolveClearAndDelete(mergeRulesConfig, 1, providers, 'ads')
+
+    expect(outcome.canDelete).toBe(false)
+    expect(outcome.blocker).toBe('unremovable-reference')
+    expect(outcome.nextRulesConfig).toEqual(mergeRulesConfig)
+    expect(outcome.nextProviders).toEqual(providers)
+  })
+
+  test('flags that clearing every rule would drop the whole rule override', () => {
+    const providers = { ads: { type: 'http', behavior: 'domain' } as const }
+
+    const emptied = resolveClearAndDelete(
+      ['RULE-SET,ads,REJECT'],
+      1,
+      providers,
+      'ads',
+    )
+    expect(emptied.canDelete).toBe(true)
+    expect(emptied.dropsRuleOverride).toBe(true)
+
+    const partial = resolveClearAndDelete(
+      ['RULE-SET,ads,REJECT', 'MATCH,DIRECT'],
+      1,
+      providers,
+      'ads',
+    )
+    expect(partial.canDelete).toBe(true)
+    expect(partial.dropsRuleOverride).toBe(false)
   })
 })

@@ -46,6 +46,7 @@ import {
   planProviderDeletion,
   removeRuleProvider,
   resolveClearAndDelete,
+  resolveDeclaredProviderConfig,
   RuleProviderConfig,
   RuleProviderConfigMap,
   upsertRuleProvider,
@@ -74,7 +75,11 @@ export const ProviderButton = () => {
   const [formTarget, setFormTarget] = useState<
     { name: string; config: RuleProviderConfig } | 'add' | null
   >(null)
-  const [deleteTarget, setDeleteTarget] = useState<string | null>(null)
+  const [deleteTarget, setDeleteTarget] = useState<{
+    name: string
+    referenceCount: number
+    dropsRuleOverride: boolean
+  } | null>(null)
 
   const mergeUid = current?.option?.merge
   const canManageProviders = Boolean(mergeUid)
@@ -89,6 +94,23 @@ export const ProviderButton = () => {
     )
     const mergeRules = readTopLevelValue<string[]>(text, 'rules')
     return { text, providers, mergeRules }
+  }
+
+  /**
+   * Same layer order as the rules editor: base profile, this subscription's
+   * merge file, then the global `Merge` file (later layers win).
+   */
+  const loadDeclaredProviderLayers = async () => {
+    const readOrEmpty = (uid?: string) =>
+      uid ? readProfileFile(uid).catch(() => '') : Promise.resolve('')
+    const [baseText, mergeText, globalText] = await Promise.all([
+      readOrEmpty(current?.uid),
+      readOrEmpty(mergeUid),
+      readOrEmpty('Merge'),
+    ])
+    return [baseText, mergeText, globalText].map((text) =>
+      readTopLevelValue<Record<string, unknown>>(text, 'rule-providers'),
+    )
   }
 
   const handleSubmitProvider = async ({ name, config }: ProviderFormValue) => {
@@ -124,12 +146,9 @@ export const ProviderButton = () => {
 
   const handleDeleteProvider = useLockFn(async (name: string) => {
     if (!mergeUid) return
-    const { providers } = await loadMergeConfig()
-    const plan = planProviderDeletion(
-      providers,
-      name,
-      findRuleProviderReferences(rules, name),
-    )
+    const { providers, mergeRules } = await loadMergeConfig()
+    const liveReferenceCount = findRuleProviderReferences(rules, name)
+    const plan = planProviderDeletion(providers, name, liveReferenceCount)
 
     if (plan.action === 'reject') {
       showNotice.error(
@@ -141,7 +160,33 @@ export const ProviderButton = () => {
       return
     }
 
-    setDeleteTarget(name)
+    // Resolve the clear-and-delete plan before opening the dialog so an
+    // unsatisfiable deletion is refused with its reason instead of being
+    // offered and then failing.
+    const outcome = resolveClearAndDelete(
+      mergeRules,
+      liveReferenceCount,
+      providers,
+      name,
+    )
+    if (
+      !outcome.canDelete &&
+      (liveReferenceCount > 0 || outcome.blocker === 'unremovable-reference')
+    ) {
+      showNotice.error(
+        outcome.blocker === 'unremovable-reference'
+          ? 'rules.feedback.notifications.provider.deleteBlockedByLogicalRule'
+          : 'rules.feedback.notifications.provider.deleteBlockedByReference',
+        { name, count: liveReferenceCount },
+      )
+      return
+    }
+
+    setDeleteTarget({
+      name,
+      referenceCount: liveReferenceCount,
+      dropsRuleOverride: outcome.dropsRuleOverride,
+    })
   })
 
   /** `nextMergeRules` is only supplied when references were just cleared; omitting it leaves the merge file's own `rules:` key untouched. */
@@ -193,14 +238,14 @@ export const ProviderButton = () => {
   }
 
   const handleConfirmedDelete = useLockFn(async () => {
-    const name = deleteTarget
+    const name = deleteTarget?.name
     if (!name) return
     setDeleteTarget(null)
     await performDelete(name)
   })
 
   const handleClearAndDelete = useLockFn(async () => {
-    const name = deleteTarget
+    const name = deleteTarget?.name
     if (!name) return
     setDeleteTarget(null)
 
@@ -215,7 +260,9 @@ export const ProviderButton = () => {
 
     if (!outcome.canDelete) {
       showNotice.error(
-        'rules.feedback.notifications.provider.deleteBlockedByReference',
+        outcome.blocker === 'unremovable-reference'
+          ? 'rules.feedback.notifications.provider.deleteBlockedByLogicalRule'
+          : 'rules.feedback.notifications.provider.deleteBlockedByReference',
         { name, count: liveReferenceCount },
       )
       return
@@ -295,10 +342,12 @@ export const ProviderButton = () => {
   }
 
   const handleOpenEdit = async (name: string) => {
-    const { providers } = await loadMergeConfig()
-    const existing = providers?.[name]
+    const layers = await loadDeclaredProviderLayers()
+    const declared = resolveDeclaredProviderConfig(layers, name)
     const runtime = ruleProviders?.[name]
-    const config: RuleProviderConfig = existing ?? {
+    // Runtime metadata only exposes type/behavior, so it is a last resort for
+    // providers no config layer declares.
+    const config: RuleProviderConfig = declared ?? {
       type:
         typeof runtime?.vehicleType === 'string' &&
         runtime.vehicleType === 'File'
@@ -528,8 +577,9 @@ export const ProviderButton = () => {
       {deleteTarget && (
         <DeleteProviderDialog
           open={deleteTarget !== null}
-          name={deleteTarget}
-          referenceCount={findRuleProviderReferences(rules, deleteTarget)}
+          name={deleteTarget.name}
+          referenceCount={deleteTarget.referenceCount}
+          dropsRuleOverride={deleteTarget.dropsRuleOverride}
           onCancel={() => setDeleteTarget(null)}
           onClearAndDelete={handleClearAndDelete}
           onDelete={handleConfirmedDelete}

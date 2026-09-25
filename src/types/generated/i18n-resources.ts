@@ -612,6 +612,7 @@ export interface TranslationResources {
             addFailed: string
             addSuccess: string
             allUpdated: string
+            deleteBlockedByLogicalRule: string
             deleteBlockedByReference: string
             deleteFailed: string
             deleteOutOfScope: string
@@ -634,6 +635,7 @@ export interface TranslationResources {
           messageNoReference: string
           messageWithReference: string
           title: string
+          warningDropsRuleOverride: string
         }
         editor: {
           form: {

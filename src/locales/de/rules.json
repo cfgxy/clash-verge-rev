@@ -29,6 +29,7 @@
         "deleteSuccess": "Rule set {{name}} deleted successfully",
         "deleteFailed": "Failed to delete rule set: {{message}}",
         "deleteBlockedByReference": "Rule set {{name}} is still referenced by {{count}} rule(s) outside the current subscription and cannot be deleted",
+        "deleteBlockedByLogicalRule": "Das Regelset {{name}} wird von einer logischen Regel referenziert und kann nicht automatisch entfernt werden; bearbeiten Sie zuerst diese Regel",
         "deleteOutOfScope": "Rule set {{name}} is defined outside the current subscription and cannot be deleted here",
         "nameDuplicate": "A rule set named {{name}} already exists"
       }
@@ -126,6 +127,7 @@
       "title": "Delete Rule Set",
       "messageNoReference": "Delete rule set \"{{name}}\"? This cannot be undone.",
       "messageWithReference": "{{count}} rule(s) in the current subscription reference \"{{name}}\". Deleting it now would leave those rules broken.",
+      "warningDropsRuleOverride": "Nach dem Entfernen dieser Verweise ist die Regelüberschreibung dieses Abonnements leer, sodass alle Regeln auf die ursprünglichen Regeln des Abonnements zurückfallen.",
       "actions": {
         "clearAndDelete": "Clear References and Delete"
       }

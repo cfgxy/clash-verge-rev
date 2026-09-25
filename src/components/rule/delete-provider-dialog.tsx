@@ -12,6 +12,8 @@ interface DeleteProviderDialogProps {
   open: boolean
   name: string
   referenceCount: number
+  /** Clearing the references would empty the merge file's `rules:` key, reverting the whole rule override. */
+  dropsRuleOverride: boolean
   onCancel: () => void
   onClearAndDelete: () => void
   onDelete: () => void
@@ -21,6 +23,7 @@ export const DeleteProviderDialog = ({
   open,
   name,
   referenceCount,
+  dropsRuleOverride,
   onCancel,
   onClearAndDelete,
   onDelete,
@@ -39,6 +42,11 @@ export const DeleteProviderDialog = ({
               })
             : t('rules.modals.deleteProvider.messageNoReference', { name })}
         </DialogContentText>
+        {dropsRuleOverride && (
+          <DialogContentText sx={{ mt: 1 }} color="error">
+            {t('rules.modals.deleteProvider.warningDropsRuleOverride')}
+          </DialogContentText>
+        )}
       </DialogContent>
       <DialogActions>
         {/* Cancel is the default/auto-focused action — deletion is irreversible. */}

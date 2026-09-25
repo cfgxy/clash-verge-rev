@@ -29,6 +29,7 @@
         "deleteSuccess": "规则集 {{name}} 删除成功",
         "deleteFailed": "删除规则集失败: {{message}}",
         "deleteBlockedByReference": "规则集 {{name}} 仍被当前订阅之外的 {{count}} 条规则引用，无法删除",
+        "deleteBlockedByLogicalRule": "规则集 {{name}} 被逻辑规则引用，无法自动移除，请先修改该规则",
         "deleteOutOfScope": "规则集 {{name}} 定义在当前订阅之外，无法在此删除",
         "nameDuplicate": "已存在名为 {{name}} 的规则集"
       }
@@ -126,6 +127,7 @@
       "title": "删除规则集",
       "messageNoReference": "确认删除规则集「{{name}}」？此操作不可撤销。",
       "messageWithReference": "当前订阅中有 {{count}} 条规则引用了「{{name}}」，直接删除会导致这些规则失效。",
+      "warningDropsRuleOverride": "清除这些引用后，本订阅的规则覆写将变为空，全部规则会回退到订阅的原始规则。",
       "actions": {
         "clearAndDelete": "清空引用规则后删除"
       }
