@@ -54,9 +54,7 @@ export function findRuleProviderReferences(
  * shape the edit form binds to. Unknown or missing fields are dropped so the
  * form falls back to its own defaults instead of showing bogus values.
  */
-export function normalizeProviderConfig(
-  raw: unknown,
-): RuleProviderConfig | undefined {
+function normalizeProviderConfig(raw: unknown): RuleProviderConfig | undefined {
   if (!raw || typeof raw !== 'object') return undefined
   const entry = raw as Record<string, unknown>
 
@@ -200,7 +198,7 @@ export function planProviderDeletion(
   return { action: 'confirm', liveReferenceCount }
 }
 
-export type ClearAndDeleteBlocker =
+type ClearAndDeleteBlocker =
   /** Some live references sit outside this subscription's own merge file (base profile or global merge). */
   | 'out-of-scope-reference'
   /** A logical rule embeds the provider; dropping that line would also drop its unrelated conditions. */
