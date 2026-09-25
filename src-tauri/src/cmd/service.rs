@@ -115,13 +115,18 @@ pub fn take_service_fallback_notice() -> bool {
 }
 
 #[tauri::command]
-pub fn get_core_startup_error() -> Option<String> {
+pub fn get_core_startup_error() -> Option<crate::core::manager::CoreFailure> {
     crate::core::CoreManager::global().get_startup_error()
 }
 
 #[tauri::command]
 pub fn take_service_repair_notice() -> bool {
     crate::core::service::take_service_repair_notice()
+}
+
+#[tauri::command]
+pub fn take_service_owner_notice() -> Option<String> {
+    crate::core::service::take_service_owner_notice()
 }
 
 #[tauri::command]
