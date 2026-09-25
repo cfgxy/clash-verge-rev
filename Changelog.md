@@ -19,6 +19,13 @@
 </details>
 
 <details>
+<summary><strong> ✨ 新增功能 </strong></summary>
+
+- 新增规则集管理入口：在「规则」页和「规则集合」窗口中直接新增、编辑、删除规则集，删除前提示引用情况并需确认
+
+</details>
+
+<details>
 <summary><strong> 🚀 优化改进 </strong></summary>
 
 - 优化内核启动失败提示：显示具体原因，并在窗口恢复后提示尚未解决的启动错误
