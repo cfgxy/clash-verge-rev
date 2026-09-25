@@ -82,22 +82,28 @@ export function clearRuleReferences(
   return rulesConfig.filter((line) => !isRuleSetReferenceLine(line, name))
 }
 
-export interface ProviderDeletePlan {
-  /** Rules referencing the provider anywhere in the live/effective config. */
-  liveReferenceCount: number
-  /** The default action must never delete data outright. */
-  defaultAction: 'cancel'
-  requiresConfirmation: boolean
+export type ProviderDeletePlan =
+  /** The provider is not declared in the merge file being edited, so deleting it here would write nothing while looking like it succeeded. */
+  | { action: 'reject'; reason: 'out-of-scope' }
+  /** Deletion is irreversible, so it always goes through the dialog whose default action is cancel. */
+  | { action: 'confirm'; liveReferenceCount: number }
+
+export function isProviderInMergeScope(
+  providers: RuleProviderConfigMap | undefined,
+  name: string,
+): boolean {
+  return Boolean(providers) && name in providers!
 }
 
 export function planProviderDeletion(
+  providers: RuleProviderConfigMap | undefined,
+  name: string,
   liveReferenceCount: number,
 ): ProviderDeletePlan {
-  return {
-    liveReferenceCount,
-    defaultAction: 'cancel',
-    requiresConfirmation: liveReferenceCount > 0,
+  if (!isProviderInMergeScope(providers, name)) {
+    return { action: 'reject', reason: 'out-of-scope' }
   }
+  return { action: 'confirm', liveReferenceCount }
 }
 
 export interface ClearAndDeleteOutcome {

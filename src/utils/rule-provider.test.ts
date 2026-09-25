@@ -108,11 +108,12 @@ describe('rule-line reference scanning', () => {
 })
 
 describe('planProviderDeletion (required delete-safety scenarios)', () => {
-  test('scenario A: references exist -> default action is cancel, deletion must not proceed by default', () => {
-    const plan = planProviderDeletion(3)
+  const adsProviders = { ads: { type: 'http', behavior: 'domain' } as const }
 
-    expect(plan.requiresConfirmation).toBe(true)
-    expect(plan.defaultAction).toBe('cancel')
+  test('scenario A: references exist -> confirmation required, deletion must not proceed by default', () => {
+    const plan = planProviderDeletion(adsProviders, 'ads', 3)
+
+    expect(plan).toEqual({ action: 'confirm', liveReferenceCount: 3 })
     // Simulates a UI that only deletes on an explicit non-default choice.
     const userTookNoAction = true
     const deletionExecuted = !userTookNoAction
@@ -121,12 +122,14 @@ describe('planProviderDeletion (required delete-safety scenarios)', () => {
 
   test('scenario B: clear-references-then-delete removes both the referencing rules and the provider', () => {
     const rulesConfig = ['RULE-SET,ads,REJECT', 'MATCH,DIRECT']
-    const providers = { ads: { type: 'http', behavior: 'domain' } as const }
+    const providers = adsProviders
 
     const plan = planProviderDeletion(
+      providers,
+      'ads',
       findReferencingRuleLineIndices(rulesConfig, 'ads').length,
     )
-    expect(plan.requiresConfirmation).toBe(true)
+    expect(plan.action).toBe('confirm')
 
     // User explicitly chooses "clear references then delete".
     const nextRulesConfig = clearRuleReferences(rulesConfig, 'ads')
@@ -137,9 +140,20 @@ describe('planProviderDeletion (required delete-safety scenarios)', () => {
     expect(findReferencingRuleLineIndices(nextRulesConfig, 'ads')).toEqual([])
   })
 
-  test('no references -> confirmation not required, deletion may proceed immediately', () => {
-    const plan = planProviderDeletion(0)
-    expect(plan.requiresConfirmation).toBe(false)
+  test('no references -> confirmation is still required before deleting', () => {
+    expect(planProviderDeletion(adsProviders, 'ads', 0)).toEqual({
+      action: 'confirm',
+      liveReferenceCount: 0,
+    })
+  })
+
+  test('provider outside the merge file -> deletion is rejected instead of silently writing nothing', () => {
+    const plan = planProviderDeletion({}, 'ads', 0)
+
+    expect(plan).toEqual({ action: 'reject', reason: 'out-of-scope' })
+    // The caller writes nothing: removeRuleProvider would return the same map.
+    expect(removeRuleProvider({}, 'ads')).toEqual({})
+    expect(planProviderDeletion(undefined, 'ads', 2).action).toBe('reject')
   })
 })
 

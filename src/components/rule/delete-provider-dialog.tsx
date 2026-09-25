@@ -14,6 +14,7 @@ interface DeleteProviderDialogProps {
   referenceCount: number
   onCancel: () => void
   onClearAndDelete: () => void
+  onDelete: () => void
 }
 
 export const DeleteProviderDialog = ({
@@ -22,6 +23,7 @@ export const DeleteProviderDialog = ({
   referenceCount,
   onCancel,
   onClearAndDelete,
+  onDelete,
 }: DeleteProviderDialogProps) => {
   const { t } = useTranslation()
 
@@ -48,7 +50,7 @@ export const DeleteProviderDialog = ({
             {t('rules.modals.deleteProvider.actions.clearAndDelete')}
           </Button>
         ) : (
-          <Button onClick={onClearAndDelete} color="error">
+          <Button onClick={onDelete} color="error">
             {t('shared.actions.delete')}
           </Button>
         )}

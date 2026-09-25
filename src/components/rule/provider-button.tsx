@@ -42,6 +42,7 @@ import {
 import { showNotice } from '@/services/notice-service'
 import {
   findRuleProviderReferences,
+  isProviderInMergeScope,
   planProviderDeletion,
   removeRuleProvider,
   resolveClearAndDelete,
@@ -123,11 +124,20 @@ export const ProviderButton = () => {
 
   const handleDeleteProvider = useLockFn(async (name: string) => {
     if (!mergeUid) return
-    const liveReferenceCount = findRuleProviderReferences(rules, name)
-    const plan = planProviderDeletion(liveReferenceCount)
+    const { providers } = await loadMergeConfig()
+    const plan = planProviderDeletion(
+      providers,
+      name,
+      findRuleProviderReferences(rules, name),
+    )
 
-    if (!plan.requiresConfirmation) {
-      await performDelete(name)
+    if (plan.action === 'reject') {
+      showNotice.error(
+        'rules.feedback.notifications.provider.deleteOutOfScope',
+        {
+          name,
+        },
+      )
       return
     }
 
@@ -139,6 +149,16 @@ export const ProviderButton = () => {
     if (!mergeUid) return
     try {
       const { text, providers } = await loadMergeConfig()
+      // Re-read scope at write time: the merge file may have changed while the dialog was open.
+      if (!isProviderInMergeScope(providers, name)) {
+        showNotice.error(
+          'rules.feedback.notifications.provider.deleteOutOfScope',
+          {
+            name,
+          },
+        )
+        return
+      }
       let nextText = text
       if (nextMergeRules !== undefined) {
         nextText = writeTopLevelValue(
@@ -171,6 +191,13 @@ export const ProviderButton = () => {
       })
     }
   }
+
+  const handleConfirmedDelete = useLockFn(async () => {
+    const name = deleteTarget
+    if (!name) return
+    setDeleteTarget(null)
+    await performDelete(name)
+  })
 
   const handleClearAndDelete = useLockFn(async () => {
     const name = deleteTarget
@@ -505,6 +532,7 @@ export const ProviderButton = () => {
           referenceCount={findRuleProviderReferences(rules, deleteTarget)}
           onCancel={() => setDeleteTarget(null)}
           onClearAndDelete={handleClearAndDelete}
+          onDelete={handleConfirmedDelete}
         />
       )}
     </>

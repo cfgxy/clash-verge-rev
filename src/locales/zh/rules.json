@@ -29,6 +29,7 @@
         "deleteSuccess": "规则集 {{name}} 删除成功",
         "deleteFailed": "删除规则集失败: {{message}}",
         "deleteBlockedByReference": "规则集 {{name}} 仍被当前订阅之外的 {{count}} 条规则引用，无法删除",
+        "deleteOutOfScope": "规则集 {{name}} 定义在当前订阅之外，无法在此删除",
         "nameDuplicate": "已存在名为 {{name}} 的规则集"
       }
     }

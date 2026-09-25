@@ -614,6 +614,7 @@ export interface TranslationResources {
             allUpdated: string
             deleteBlockedByReference: string
             deleteFailed: string
+            deleteOutOfScope: string
             deleteSuccess: string
             editFailed: string
             editSuccess: string

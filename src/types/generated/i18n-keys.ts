@@ -367,6 +367,7 @@ export const translationKeys = [
   'rules.feedback.notifications.provider.deleteSuccess',
   'rules.feedback.notifications.provider.deleteFailed',
   'rules.feedback.notifications.provider.deleteBlockedByReference',
+  'rules.feedback.notifications.provider.deleteOutOfScope',
   'rules.feedback.notifications.provider.nameDuplicate',
   'rules.modals.editor.form.labels.type',
   'rules.modals.editor.form.labels.content',
