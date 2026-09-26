@@ -11,7 +11,9 @@
     },
     "title": "规则",
     "actions": {
-      "editRules": "编辑规则"
+      "editRules": "编辑规则",
+      "exportBundle": "导出规则",
+      "importBundle": "导入规则"
     }
   },
   "feedback": {
@@ -32,6 +34,23 @@
         "deleteBlockedByLogicalRule": "规则集 {{name}} 被逻辑规则引用，无法自动移除，请先修改该规则",
         "deleteOutOfScope": "规则集 {{name}} 定义在当前订阅之外，无法在此删除",
         "nameDuplicate": "已存在名为 {{name}} 的规则集"
+      },
+      "bundle": {
+        "exportSuccess": "规则已导出",
+        "exportFailed": "导出规则失败：{{message}}",
+        "importSuccess": "规则已导入",
+        "importFailed": "导入规则失败：{{message}}",
+        "nothingToExport": "没有可导出的自定义规则或规则集",
+        "rejected": {
+          "notAZip": "该文件不是规则包",
+          "manifestMissing": "规则包缺少 manifest.json",
+          "manifestInvalid": "规则包的 manifest.json 格式错误",
+          "formatVersion": "本版本不支持规则包格式 {{version}}，未导入任何内容",
+          "unsafeEntryPath": "规则包中存在路径不安全的条目，未导入任何内容",
+          "contentMissing": "规则包缺少 {{path}}",
+          "contentCorrupt": "规则包中的 {{path}} 与校验值不一致",
+          "contentInvalid": "规则包中的 {{path}} 格式错误"
+        }
       }
     }
   },
@@ -130,6 +149,36 @@
       "warningDropsRuleOverride": "清除这些引用后，本订阅的规则覆写将变为空，全部规则会回退到订阅的原始规则。",
       "actions": {
         "clearAndDelete": "清空引用规则后删除"
+      }
+    },
+    "exportBundle": {
+      "title": "导出规则",
+      "fileFilter": "规则包",
+      "summary": "将导出 {{ruleCount}} 条自定义规则和 {{providerCount}} 个自定义规则集，不包含订阅自带的规则与规则集。",
+      "subscriptionAddressWarning": "规则包中记录了规则集地址（{{hosts}}），可能包含订阅令牌，请仅分享给可信任的人。",
+      "actions": {
+        "export": "导出"
+      }
+    },
+    "importBundle": {
+      "title": "导入规则",
+      "summary": "来自 {{generator}} 的规则包：{{ruleCount}} 条规则，{{providerCount}} 个规则集。",
+      "newerMinor": "该规则包由更新版本创建（格式 {{version}}），本版本无法识别的字段已忽略。",
+      "policyMappingTitle": "代理策略映射",
+      "policyMappingHint": "为规则包中的每个策略选择对应的本地策略；未完成映射的策略对应的规则不会导入。",
+      "policyRequired": "请选择本地策略",
+      "conflictTitle": "已存在的规则集",
+      "conflict": {
+        "skip": "保留现有规则集",
+        "overwrite": "用规则包中的覆盖",
+        "rename": "以新名称导入",
+        "newName": "新名称",
+        "nameTaken": "该名称已被占用",
+        "skipReferenced": "规则包中有 {{count}} 条规则引用了「{{name}}」，将改用现有规则集：{{rules}}"
+      },
+      "providerSourceNotice": "规则包中的规则集地址指向：{{hosts}}",
+      "actions": {
+        "import": "导入"
       }
     }
   }

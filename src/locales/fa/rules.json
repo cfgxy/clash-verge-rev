@@ -11,7 +11,9 @@
     },
     "title": "قوانین",
     "actions": {
-      "editRules": "Edit Rules"
+      "editRules": "Edit Rules",
+      "exportBundle": "Export Rules",
+      "importBundle": "Import Rules"
     }
   },
   "feedback": {
@@ -32,6 +34,23 @@
         "deleteBlockedByLogicalRule": "مجموعه قواعد {{name}} توسط یک قاعدهٔ منطقی ارجاع داده شده و به‌صورت خودکار حذف نمی‌شود؛ ابتدا آن قاعده را ویرایش کنید",
         "deleteOutOfScope": "Rule set {{name}} is defined outside the current subscription and cannot be deleted here",
         "nameDuplicate": "A rule set named {{name}} already exists"
+      },
+      "bundle": {
+        "exportSuccess": "Rules exported",
+        "exportFailed": "Failed to export rules: {{message}}",
+        "importSuccess": "Rules imported",
+        "importFailed": "Failed to import rules: {{message}}",
+        "nothingToExport": "No custom rules or rule sets to export",
+        "rejected": {
+          "notAZip": "This file is not a rule bundle",
+          "manifestMissing": "The bundle has no manifest.json",
+          "manifestInvalid": "The bundle's manifest.json is malformed",
+          "formatVersion": "Bundle format {{version}} is not supported by this version; nothing was imported",
+          "unsafeEntryPath": "The bundle contains an entry with an unsafe path; nothing was imported",
+          "contentMissing": "The bundle is missing {{path}}",
+          "contentCorrupt": "{{path}} in the bundle does not match its checksum",
+          "contentInvalid": "{{path}} in the bundle is malformed"
+        }
       }
     }
   },
@@ -130,6 +149,36 @@
       "warningDropsRuleOverride": "با پاک کردن این ارجاع‌ها، بازنویسی قواعد این اشتراک خالی می‌شود و همهٔ قواعد به قواعد اصلی اشتراک بازمی‌گردند.",
       "actions": {
         "clearAndDelete": "Clear References and Delete"
+      }
+    },
+    "exportBundle": {
+      "title": "Export Rules",
+      "fileFilter": "Rule bundle",
+      "summary": "Exports {{ruleCount}} custom rule(s) and {{providerCount}} custom rule set(s). The subscription's own rules and rule sets are not included.",
+      "subscriptionAddressWarning": "The bundle records rule set addresses ({{hosts}}), which may contain subscription tokens. Share it only with people you trust.",
+      "actions": {
+        "export": "Export"
+      }
+    },
+    "importBundle": {
+      "title": "Import Rules",
+      "summary": "Bundle from {{generator}}: {{ruleCount}} rule(s), {{providerCount}} rule set(s).",
+      "newerMinor": "This bundle was created by a newer version (format {{version}}). Fields this version does not recognize are ignored.",
+      "policyMappingTitle": "Proxy policy mapping",
+      "policyMappingHint": "Pick the local policy each bundled policy maps to. Rules whose policy is unmapped are not imported.",
+      "policyRequired": "Pick a local policy",
+      "conflictTitle": "Rule sets that already exist",
+      "conflict": {
+        "skip": "Keep the existing one",
+        "overwrite": "Overwrite with the bundled one",
+        "rename": "Import under a new name",
+        "newName": "New name",
+        "nameTaken": "This name is already in use",
+        "skipReferenced": "{{count}} bundled rule(s) reference \"{{name}}\" and will use the existing rule set: {{rules}}"
+      },
+      "providerSourceNotice": "Rule set addresses in this bundle point to: {{hosts}}",
+      "actions": {
+        "import": "Import"
       }
     }
   }
