@@ -13,6 +13,7 @@ import {
 import { ScrollTopButton } from '@/components/layout/scroll-top-button'
 import { RulesEditorViewer } from '@/components/profile/rules-editor-viewer'
 import { ProviderButton } from '@/components/rule/provider-button'
+import { RuleBundleButton } from '@/components/rule/rule-bundle-button'
 import RuleItem from '@/components/rule/rule-item'
 import { useProfiles } from '@/hooks/use-profiles'
 import { useVisibility } from '@/hooks/use-visibility'
@@ -81,6 +82,7 @@ const RulesPage = () => {
               {t('rules.page.actions.editRules')}
             </Button>
           )}
+          <RuleBundleButton />
           <ProviderButton />
         </Box>
       }

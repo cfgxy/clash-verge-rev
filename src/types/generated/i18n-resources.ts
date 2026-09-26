@@ -608,6 +608,23 @@ export interface TranslationResources {
     rules: {
       feedback: {
         notifications: {
+          bundle: {
+            exportFailed: string
+            exportSuccess: string
+            importFailed: string
+            importSuccess: string
+            nothingToExport: string
+            rejected: {
+              contentCorrupt: string
+              contentInvalid: string
+              contentMissing: string
+              formatVersion: string
+              manifestInvalid: string
+              manifestMissing: string
+              notAZip: string
+              unsafeEntryPath: string
+            }
+          }
           provider: {
             addFailed: string
             addSuccess: string
@@ -693,6 +710,36 @@ export interface TranslationResources {
           }
           title: string
         }
+        exportBundle: {
+          actions: {
+            export: string
+          }
+          fileFilter: string
+          subscriptionAddressWarning: string
+          summary: string
+          title: string
+        }
+        importBundle: {
+          actions: {
+            import: string
+          }
+          conflict: {
+            nameTaken: string
+            newName: string
+            overwrite: string
+            rename: string
+            skip: string
+            skipReferenced: string
+          }
+          conflictTitle: string
+          newerMinor: string
+          policyMappingHint: string
+          policyMappingTitle: string
+          policyRequired: string
+          providerSourceNotice: string
+          summary: string
+          title: string
+        }
         provider: {
           form: {
             labels: {
@@ -728,6 +775,8 @@ export interface TranslationResources {
       page: {
         actions: {
           editRules: string
+          exportBundle: string
+          importBundle: string
         }
         provider: {
           actions: {

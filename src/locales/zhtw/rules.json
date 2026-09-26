@@ -11,7 +11,9 @@
     },
     "title": "規則",
     "actions": {
-      "editRules": "Edit Rules"
+      "editRules": "Edit Rules",
+      "exportBundle": "匯出規則",
+      "importBundle": "匯入規則"
     }
   },
   "feedback": {
@@ -32,6 +34,23 @@
         "deleteBlockedByLogicalRule": "規則集 {{name}} 被邏輯規則引用，無法自動移除，請先修改該規則",
         "deleteOutOfScope": "Rule set {{name}} is defined outside the current subscription and cannot be deleted here",
         "nameDuplicate": "A rule set named {{name}} already exists"
+      },
+      "bundle": {
+        "exportSuccess": "規則已匯出",
+        "exportFailed": "匯出規則失敗：{{message}}",
+        "importSuccess": "規則已匯入",
+        "importFailed": "匯入規則失敗：{{message}}",
+        "nothingToExport": "沒有可匯出的自訂規則或規則集",
+        "rejected": {
+          "notAZip": "該檔案不是規則包",
+          "manifestMissing": "規則包缺少 manifest.json",
+          "manifestInvalid": "規則包的 manifest.json 格式錯誤",
+          "formatVersion": "本版本不支援規則包格式 {{version}}，未匯入任何內容",
+          "unsafeEntryPath": "規則包中存在路徑不安全的項目，未匯入任何內容",
+          "contentMissing": "規則包缺少 {{path}}",
+          "contentCorrupt": "規則包中的 {{path}} 與校驗值不一致",
+          "contentInvalid": "規則包中的 {{path}} 格式錯誤"
+        }
       }
     }
   },
@@ -130,6 +149,36 @@
       "warningDropsRuleOverride": "清除這些引用後，本訂閱的規則覆寫將變為空，全部規則會回退到訂閱的原始規則。",
       "actions": {
         "clearAndDelete": "Clear References and Delete"
+      }
+    },
+    "exportBundle": {
+      "title": "匯出規則",
+      "fileFilter": "規則包",
+      "summary": "將匯出 {{ruleCount}} 條自訂規則和 {{providerCount}} 個自訂規則集，不包含訂閱自帶的規則與規則集。",
+      "subscriptionAddressWarning": "規則包中記錄了規則集位址（{{hosts}}），可能包含訂閱權杖，請僅分享給可信任的人。",
+      "actions": {
+        "export": "匯出"
+      }
+    },
+    "importBundle": {
+      "title": "匯入規則",
+      "summary": "來自 {{generator}} 的規則包：{{ruleCount}} 條規則，{{providerCount}} 個規則集。",
+      "newerMinor": "該規則包由較新版本建立（格式 {{version}}），本版本無法識別的欄位已忽略。",
+      "policyMappingTitle": "代理策略對應",
+      "policyMappingHint": "為規則包中的每個策略選擇對應的本機策略；未完成對應的策略所屬規則不會匯入。",
+      "policyRequired": "請選擇本機策略",
+      "conflictTitle": "已存在的規則集",
+      "conflict": {
+        "skip": "保留現有規則集",
+        "overwrite": "用規則包中的覆寫",
+        "rename": "以新名稱匯入",
+        "newName": "新名稱",
+        "nameTaken": "該名稱已被占用",
+        "skipReferenced": "規則包中有 {{count}} 條規則引用了「{{name}}」，將改用現有規則集：{{rules}}"
+      },
+      "providerSourceNotice": "規則包中的規則集位址指向：{{hosts}}",
+      "actions": {
+        "import": "匯入"
       }
     }
   }
