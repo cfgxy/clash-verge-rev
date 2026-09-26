@@ -5,6 +5,8 @@ on:
     # -rc tag 时预览发布, 跳过 telegram 通知、跳过 winget 提交、跳过 latest.json 文件更新
     tags:
       - 'v*.*.*'
+# 构建平台由仓库变量 RELEASE_TARGETS 控制, 未设置时只构建 win-x64。
+# 取值为 all, 或 plan_targets 中 id 的逗号分隔列表, 例如 win-x64,linux-x64。
 permissions: write-all
 env:
   CARGO_INCREMENTAL: 0
@@ -59,6 +61,72 @@ jobs:
 
           echo "✅ Tag and package.json version are consistent."
 
+  plan_targets:
+    name: Plan Build Targets
+    runs-on: ubuntu-latest
+    needs: [check_tag_version]
+    outputs:
+      release: ${{ steps.plan.outputs.release }}
+      release_enabled: ${{ steps.plan.outputs.release_enabled }}
+      linux_arm: ${{ steps.plan.outputs.linux_arm }}
+      linux_arm_enabled: ${{ steps.plan.outputs.linux_arm_enabled }}
+      fixed_webview2: ${{ steps.plan.outputs.fixed_webview2 }}
+      fixed_webview2_enabled: ${{ steps.plan.outputs.fixed_webview2_enabled }}
+    steps:
+      - name: Select build targets
+        id: plan
+        env:
+          RELEASE_TARGETS: ${{ vars.RELEASE_TARGETS || 'win-x64' }}
+        run: |
+          catalog=$(cat <<'EOF'
+          {
+            "release": [
+              { "id": "win-x64", "os": "windows-latest", "target": "x86_64-pc-windows-msvc" },
+              { "id": "win-arm64", "os": "windows-latest", "target": "aarch64-pc-windows-msvc" },
+              { "id": "macos-arm64", "os": "macos-latest", "target": "aarch64-apple-darwin" },
+              { "id": "macos-x64", "os": "macos-latest", "target": "x86_64-apple-darwin" },
+              { "id": "linux-x64", "os": "ubuntu-22.04", "target": "x86_64-unknown-linux-gnu" }
+            ],
+            "linux_arm": [
+              { "id": "linux-arm64", "os": "ubuntu-22.04", "target": "aarch64-unknown-linux-gnu", "arch": "arm64" },
+              { "id": "linux-armhf", "os": "ubuntu-22.04", "target": "armv7-unknown-linux-gnueabihf", "arch": "armhf" }
+            ],
+            "fixed_webview2": [
+              { "id": "fwv2-x64", "os": "windows-latest", "target": "x86_64-pc-windows-msvc", "arch": "x64" },
+              { "id": "fwv2-arm64", "os": "windows-latest", "target": "aarch64-pc-windows-msvc", "arch": "arm64" }
+            ]
+          }
+          EOF
+          )
+
+          selection="${RELEASE_TARGETS// /}"
+          if [ -z "$selection" ]; then
+            selection="win-x64"
+          fi
+          echo "Requested targets: $selection"
+
+          total=0
+          for group in release linux_arm fixed_webview2; do
+            items=$(jq -c --arg group "$group" --arg selection "$selection" '
+              ($selection | ascii_downcase | split(",") | map(select(length > 0))) as $want
+              | .[$group]
+              | map(. as $entry | select(($want | index("all")) or ($want | index($entry.id))))
+            ' <<<"$catalog")
+
+            count=$(jq 'length' <<<"$items")
+            total=$((total + count))
+            if [ "$count" -gt 0 ]; then enabled=true; else enabled=false; fi
+
+            echo "$group -> enabled=$enabled $items"
+            echo "$group=$items" >> "$GITHUB_OUTPUT"
+            echo "${group}_enabled=$enabled" >> "$GITHUB_OUTPUT"
+          done
+
+          if [ "$total" -eq 0 ]; then
+            echo "::error::RELEASE_TARGETS='$selection' matched no build target."
+            exit 1
+          fi
+
   prepare_release:
     name: Prepare Draft Release
     runs-on: ubuntu-latest
@@ -88,6 +156,12 @@ jobs:
         release-for-linux-arm,
         release-for-fixed-webview2,
       ]
+    # 未选中的构建组会被跳过, 默认的 needs 语义会连带跳过本 job, 故显式只拦截失败与取消。
+    if: |
+      always()
+      && needs.prepare_release.result == 'success'
+      && !contains(needs.*.result, 'failure')
+      && !contains(needs.*.result, 'cancelled')
     steps:
       - name: Checkout repository
         uses: actions/checkout@v7
@@ -180,21 +254,12 @@ jobs:
 
   release:
     name: Release Build
-    needs: [prepare_release]
+    needs: [plan_targets, prepare_release]
+    if: needs.plan_targets.outputs.release_enabled == 'true'
     strategy:
       fail-fast: false
       matrix:
-        include:
-          - os: windows-latest
-            target: x86_64-pc-windows-msvc
-          - os: windows-latest
-            target: aarch64-pc-windows-msvc
-          - os: macos-latest
-            target: aarch64-apple-darwin
-          - os: macos-latest
-            target: x86_64-apple-darwin
-          - os: ubuntu-22.04
-            target: x86_64-unknown-linux-gnu
+        include: ${{ fromJSON(needs.plan_targets.outputs.release) }}
 
     runs-on: ${{ matrix.os }}
     steps:
@@ -292,17 +357,12 @@ jobs:
 
   release-for-linux-arm:
     name: Release Build for Linux ARM
-    needs: [prepare_release]
+    needs: [plan_targets, prepare_release]
+    if: needs.plan_targets.outputs.linux_arm_enabled == 'true'
     strategy:
       fail-fast: false
       matrix:
-        include:
-          - os: ubuntu-22.04
-            target: aarch64-unknown-linux-gnu
-            arch: arm64
-          - os: ubuntu-22.04
-            target: armv7-unknown-linux-gnueabihf
-            arch: armhf
+        include: ${{ fromJSON(needs.plan_targets.outputs.linux_arm) }}
     runs-on: ${{ matrix.os }}
     steps:
       - name: Checkout Repository
@@ -427,17 +487,12 @@ jobs:
 
   release-for-fixed-webview2:
     name: Release Build for Fixed WebView2
-    needs: [prepare_release]
+    needs: [plan_targets, prepare_release]
+    if: needs.plan_targets.outputs.fixed_webview2_enabled == 'true'
     strategy:
       fail-fast: false
       matrix:
-        include:
-          - os: windows-latest
-            target: x86_64-pc-windows-msvc
-            arch: x64
-          - os: windows-latest
-            target: aarch64-pc-windows-msvc
-            arch: arm64
+        include: ${{ fromJSON(needs.plan_targets.outputs.fixed_webview2) }}
     runs-on: ${{ matrix.os }}
     steps:
       - name: Checkout Repository
@@ -589,7 +644,8 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
   submit-to-winget:
-    if: ${{ !contains(github.ref_name, '-rc') }}
+    # 向 microsoft/winget-pkgs 提 PR, 只允许上游仓库执行, fork 上不得触发。
+    if: ${{ !contains(github.ref_name, '-rc') && github.repository == 'clash-verge-rev/clash-verge-rev' }}
     name: Submit to Winget
     runs-on: ubuntu-latest
     needs: [update_tag, release-update]
@@ -613,7 +669,8 @@ jobs:
           token: ${{ secrets.WINGET_TOKEN  }}
 
   notify-telegram:
-    if: ${{ !contains(github.ref_name, '-rc') }}
+    # 推送到上游公开频道 @clash_verge_re, 只允许上游仓库执行, fork 上不得触发。
+    if: ${{ !contains(github.ref_name, '-rc') && github.repository == 'clash-verge-rev/clash-verge-rev' }}
     name: Notify Telegram
     runs-on: ubuntu-latest
     needs:
