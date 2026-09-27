@@ -35,11 +35,41 @@ dropping it would break round-tripping.
 
 `providers/providers.yaml` holds a single `rule-providers` mapping.
 
+### Scoped rule providers (format 1.1)
+
+User-declared providers can be stored in either the selected profile's merge
+file or the global `Merge` file. The subscription's own declarations remain
+outside the bundle. Preserve both scopes: merging them permanently into the
+target profile would lose the global layer's effect on other desktop profiles.
+
+Version 1.0 bundles have only `providers/providers.yaml`, which an importing
+desktop client treats as profile-scoped. Version 1.1 adds two entries:
+
+```text
+providers/providers.yaml  # effective union for older importers; global wins
+providers/profile.yaml    # declarations from the selected profile merge
+providers/global.yaml     # declarations from the global Merge file
+```
+
+All three entries are listed in `manifest.contents` with SHA-256 and entry
+counts. The effective union must match the two scoped maps after global names
+override profile names; an inconsistency rejects the bundle before any writes.
+An older importer can still use the effective union in its target profile and
+warn that a newer minor format may have lost scope. A desktop importer that
+understands 1.1 restores both maps to their original scopes, including two
+different declarations with the same name; the global layer retains precedence.
+Android has no equivalent global merge file and imports the effective union
+into the selected profile. Scope changes to the global file affect all desktop
+profiles, so import must make that effect visible before confirmation.
+Conflict actions for a bundled name apply to both scoped declarations: skip
+keeps both local layers, rename changes the name in both layers and in incoming
+rule references, and overwrite replaces the declaration in each original scope.
+
 ### manifest.json
 
 | field | meaning |
 | --- | --- |
-| `formatVersion` | `major.minor`, currently `1.0` |
+| `formatVersion` | `major.minor`; desktop exports `1.1`, older bundles use `1.0` |
 | `generator` | `{ app, version }`; `app` is `clash-verge-rev` or `clash-meta-for-android` |
 | `createdAt` | RFC 3339 timestamp |
 | `proxyPolicies` | distinct policies the bundled `prepend`/`append` rules reference |
@@ -57,8 +87,10 @@ silently.
 
 ### Import semantics
 
-Import is atomic: the archive is fully parsed and validated, and every user
-decision is resolved, before the first file write.
+The archive is fully parsed and validated, and every user decision is resolved,
+before the first file write. Writes to the rule file, profile merge file, and
+global merge file are separate operations; a later write failure can leave an
+earlier change in place. Imports are not transactional across files.
 
 - Byte-identical rule lines are skipped; imported lines are appended after the
   existing ones.
@@ -87,8 +119,8 @@ files, never evaluated or interpolated into a command line.
 ## Consequences
 
 - Bundles stay small and stable across subscription updates.
-- Cross-client interop needs only the two YAML documents and the manifest, so
-  the Android client can produce bundles this client accepts and vice versa.
+- Version 1.1 adds two YAML documents to preserve desktop scope, while the
+  original union entry remains readable by version 1.0 clients.
 - A bundle is not a backup: restoring it onto a profile without the matching
   groups requires the mapping step.
 - The ZIP layer is hand-written (store on write, store + deflate on read) to

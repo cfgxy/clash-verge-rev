@@ -1,4 +1,7 @@
+import type { RuleProviderConfigMap } from '@/utils/rule-provider'
 import { readTopLevelValue } from '@/utils/yaml-top-level'
+
+import type { RuleSequence } from './format'
 
 /** Same builtin policies the rules editor offers. */
 export const BUILTIN_PROXY_POLICIES = [
@@ -17,6 +20,29 @@ export interface ProfileTexts {
   merge: string
   /** The global `Merge` file. */
   globalMerge: string
+}
+
+export function readOwnRuleLayer(
+  rules: string,
+  merge: string,
+  globalMerge: string,
+): {
+  sequence: RuleSequence
+  providers: RuleProviderConfigMap
+  globalProviders: RuleProviderConfigMap
+} {
+  return {
+    sequence: {
+      prepend: readTopLevelValue<string[]>(rules, 'prepend') ?? [],
+      append: readTopLevelValue<string[]>(rules, 'append') ?? [],
+      delete: readTopLevelValue<string[]>(rules, 'delete') ?? [],
+    },
+    providers:
+      readTopLevelValue<RuleProviderConfigMap>(merge, 'rule-providers') ?? {},
+    globalProviders:
+      readTopLevelValue<RuleProviderConfigMap>(globalMerge, 'rule-providers') ??
+      {},
+  }
 }
 
 interface GroupEntry {

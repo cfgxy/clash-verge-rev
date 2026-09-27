@@ -1,4 +1,4 @@
-import { dump } from 'js-yaml'
+import { dump, load } from 'js-yaml'
 import { describe, expect, it } from 'vitest'
 
 import type { RuleProviderConfigMap } from '@/utils/rule-provider'
@@ -6,12 +6,14 @@ import type { RuleProviderConfigMap } from '@/utils/rule-provider'
 import { BundleImportError, buildRuleBundle, readRuleBundle } from './bundle'
 import {
   MANIFEST_ENTRY,
+  GLOBAL_PROVIDERS_ENTRY,
+  PROFILE_PROVIDERS_ENTRY,
   PROVIDERS_ENTRY,
   RULES_ENTRY,
   type RuleSequence,
 } from './format'
 import { sha256Hex } from './sha256'
-import { createZipArchive, encodeUtf8 } from './zip'
+import { createZipArchive, decodeUtf8, encodeUtf8, readZipArchive } from './zip'
 
 const sequence: RuleSequence = {
   prepend: ['DOMAIN-SUFFIX,example.com,Proxy', 'RULE-SET,ads,REJECT'],
@@ -78,7 +80,132 @@ describe('buildRuleBundle', () => {
 
     expect(bundle.sequence).toEqual(sequence)
     expect(bundle.providers).toEqual(providers)
+    expect(bundle.profileProviders).toEqual(providers)
+    expect(bundle.globalProviders).toEqual({})
     expect(producedByNewerMinor).toBe(false)
+  })
+
+  it('preserves global-only and shadowed declarations in a scoped bundle', async () => {
+    const globalProviders: RuleProviderConfigMap = {
+      ads: {
+        type: 'http',
+        behavior: 'classical',
+        url: 'https://example.com/global.yaml',
+      },
+      globalOnly: {
+        type: 'http',
+        behavior: 'domain',
+        url: 'https://example.com/global-only.yaml',
+      },
+    }
+    const bytes = await buildRuleBundle({
+      sequence,
+      providers,
+      globalProviders,
+      appVersion: '2.5.6',
+    })
+    const { bundle, producedByNewerMinor } = await readRuleBundle(bytes)
+    const entries = await readZipArchive(bytes)
+    const effectiveYaml = entries.find(({ name }) => name === PROVIDERS_ENTRY)
+
+    expect(bundle.manifest.formatVersion).toBe('1.1')
+    expect(bundle.manifest.contents.map(({ path }) => path)).toEqual([
+      RULES_ENTRY,
+      PROVIDERS_ENTRY,
+      PROFILE_PROVIDERS_ENTRY,
+      GLOBAL_PROVIDERS_ENTRY,
+    ])
+    expect(
+      bundle.manifest.contents.map(({ entryCount }) => entryCount),
+    ).toEqual([4, 2, 1, 2])
+    expect(bundle.profileProviders).toEqual(providers)
+    expect(bundle.globalProviders).toEqual(globalProviders)
+    expect(bundle.providers).toEqual({ ...providers, ...globalProviders })
+    expect(load(decodeUtf8(effectiveYaml!.data))).toEqual({
+      'rule-providers': { ...providers, ...globalProviders },
+    })
+    expect(producedByNewerMinor).toBe(false)
+  })
+
+  it('round-trips providers declared only in the global merge file', async () => {
+    const globalProviders: RuleProviderConfigMap = { globalOnly: providers.ads }
+    const bytes = await buildRuleBundle({
+      sequence,
+      providers: {},
+      globalProviders,
+      appVersion: '2.5.6',
+    })
+    const { bundle } = await readRuleBundle(bytes)
+
+    expect(bundle.profileProviders).toEqual({})
+    expect(bundle.globalProviders).toEqual(globalProviders)
+    expect(bundle.providers).toEqual(globalProviders)
+    expect(
+      bundle.manifest.contents.map(({ entryCount }) => entryCount),
+    ).toEqual([4, 1, 0, 1])
+  })
+
+  it('rejects an omitted or damaged global declaration before import', async () => {
+    const bytes = await buildRuleBundle({
+      sequence,
+      providers,
+      globalProviders: { globalOnly: providers.ads },
+      appVersion: '2.5.6',
+    })
+    const entries = await readZipArchive(bytes)
+
+    for (const path of [
+      PROVIDERS_ENTRY,
+      PROFILE_PROVIDERS_ENTRY,
+      GLOBAL_PROVIDERS_ENTRY,
+    ]) {
+      await expect(
+        readRuleBundle(
+          await createZipArchive(entries.filter(({ name }) => name !== path)),
+        ),
+      ).rejects.toMatchObject({
+        rejection: { kind: 'content-missing', path },
+      })
+    }
+
+    await expect(
+      readRuleBundle(
+        await createZipArchive(
+          entries.map((entry) =>
+            entry.name === GLOBAL_PROVIDERS_ENTRY
+              ? { ...entry, data: encodeUtf8('rule-providers: {}') }
+              : entry,
+          ),
+        ),
+      ),
+    ).rejects.toMatchObject({
+      rejection: { kind: 'content-corrupt', path: GLOBAL_PROVIDERS_ENTRY },
+    })
+  })
+
+  it('rejects a validly hashed union that disagrees with its scopes', async () => {
+    const bytes = await buildRuleBundle({
+      sequence,
+      providers,
+      globalProviders: { globalOnly: providers.ads },
+      appVersion: '2.5.6',
+    })
+    const entries = await readZipArchive(bytes)
+    const effectiveYaml = encodeUtf8(dump({ 'rule-providers': providers }))
+    const patched = entries.map((entry) => ({ ...entry }))
+    const manifestEntry = patched.find(({ name }) => name === MANIFEST_ENTRY)!
+    const manifest = JSON.parse(decodeUtf8(manifestEntry.data))
+    manifest.contents.find(
+      (item: { path: string }) => item.path === PROVIDERS_ENTRY,
+    ).sha256 = await sha256Hex(effectiveYaml)
+    manifestEntry.data = encodeUtf8(JSON.stringify(manifest))
+    patched.find(({ name }) => name === PROVIDERS_ENTRY)!.data = effectiveYaml
+
+    await expect(
+      readRuleBundle(await createZipArchive(patched)),
+    ).rejects.toMatchObject({
+      rejection: { kind: 'content-invalid', path: PROVIDERS_ENTRY },
+    })
   })
 })
 
@@ -247,6 +374,8 @@ describe('readRuleBundle rejections', () => {
 
     expect(bundle.manifest.generator.app).toBe('clash-meta-for-android')
     expect(bundle.providers).toEqual(providers)
+    expect(bundle.profileProviders).toEqual(providers)
+    expect(bundle.globalProviders).toEqual({})
   })
 
   it('reports rejections as BundleImportError', async () => {

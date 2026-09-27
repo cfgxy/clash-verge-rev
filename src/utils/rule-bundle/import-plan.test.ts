@@ -6,9 +6,11 @@ import { type RuleSequence } from './format'
 import {
   applyPolicyToRuleLine,
   applyProviderRenameToRuleLine,
+  findInvalidProviderRenames,
   findBundleRuleSetReferences,
   isMappingComplete,
   mergeBundleIntoMerge,
+  mergeScopedBundle,
   prepareImport,
   type ResolvedImport,
 } from './import-plan'
@@ -68,6 +70,35 @@ describe('prepareImport', () => {
     expect(providerConflicts).toEqual([
       { name: 'ads', referencingRules: ['RULE-SET,ads,REJECT'] },
     ])
+  })
+})
+
+describe('findInvalidProviderRenames', () => {
+  it('rejects names already in the bundle and duplicate rename targets', () => {
+    expect(
+      findInvalidProviderRenames(
+        { ads: 'rename', cn: 'rename', other: 'skip' },
+        { ads: 'globalOnly', cn: 'globalOnly' },
+        ['globalOnly'],
+      ),
+    ).toEqual(['ads', 'cn'])
+    expect(
+      findInvalidProviderRenames(
+        { ads: 'rename', cn: 'rename' },
+        { ads: 'fresh', cn: 'fresh' },
+        [],
+      ),
+    ).toEqual(['ads', 'cn'])
+  })
+
+  it('accepts distinct new names and ignores resolutions that do not rename', () => {
+    expect(
+      findInvalidProviderRenames(
+        { ads: 'rename', cn: 'skip', globalOnly: 'rename' },
+        { ads: 'ads-imported', cn: '', globalOnly: 'global-imported' },
+        ['ads', 'cn', 'globalOnly'],
+      ),
+    ).toEqual([])
   })
 })
 
@@ -270,5 +301,136 @@ describe('mergeBundleIntoMerge', () => {
       'cn',
     ])
     expect(result.sequence.prepend).toContain('RULE-SET,ads-imported,REJECT')
+  })
+})
+
+describe('mergeScopedBundle', () => {
+  const resolved: ResolvedImport = {
+    providerResolutions: new Map(),
+    policyMap: new Map([
+      ['Source Proxy', 'Local Proxy'],
+      ['Domestic', 'Domestic'],
+      ['REJECT', 'REJECT'],
+    ]),
+  }
+  const globalProviders: RuleProviderConfigMap = {
+    ads: {
+      type: 'http',
+      behavior: 'classical',
+      url: 'https://example.com/global.yaml',
+    },
+    globalOnly: {
+      type: 'http',
+      behavior: 'domain',
+      url: 'https://example.com/global-only.yaml',
+    },
+  }
+
+  it('restores global-only providers to the global scope', () => {
+    const result = mergeScopedBundle(
+      { prepend: [], append: [], delete: [] },
+      {},
+      {},
+      { sequence, profileProviders: {}, globalProviders },
+      resolved,
+    )
+
+    expect(result.profileProviders).toEqual({})
+    expect(result.globalProviders).toEqual(globalProviders)
+    expect(result.sequence.prepend).toContain('RULE-SET,ads,REJECT')
+  })
+
+  it('keeps shadowed profile and global definitions separate', () => {
+    const result = mergeScopedBundle(
+      { prepend: [], append: [], delete: [] },
+      {},
+      {},
+      { sequence, profileProviders: bundleProviders, globalProviders },
+      resolved,
+    )
+
+    expect(result.profileProviders.ads).toEqual(bundleProviders.ads)
+    expect(result.globalProviders.ads).toEqual(globalProviders.ads)
+    expect(result.profileProviders).not.toHaveProperty('globalOnly')
+    expect(
+      { ...result.profileProviders, ...result.globalProviders }.ads,
+    ).toEqual(globalProviders.ads)
+  })
+
+  it('does not replace an existing global name when overwriting a profile name', () => {
+    const result = mergeScopedBundle(
+      { prepend: [], append: [], delete: [] },
+      {},
+      { ads: globalProviders.ads },
+      { sequence, profileProviders: bundleProviders, globalProviders: {} },
+      {
+        ...resolved,
+        providerResolutions: new Map([['ads', { action: 'overwrite' }]]),
+      },
+    )
+
+    expect(result.profileProviders.ads).toEqual(bundleProviders.ads)
+    expect(result.globalProviders.ads).toEqual(globalProviders.ads)
+  })
+
+  it('renames matching definitions in both scopes and rewrites rule references', () => {
+    const result = mergeScopedBundle(
+      { prepend: [], append: [], delete: [] },
+      { ads: bundleProviders.ads },
+      { ads: globalProviders.ads },
+      { sequence, profileProviders: bundleProviders, globalProviders },
+      {
+        ...resolved,
+        providerResolutions: new Map([
+          ['ads', { action: 'rename', newName: 'ads-imported' }],
+        ]),
+      },
+    )
+
+    expect(result.profileProviders.ads).toEqual(bundleProviders.ads)
+    expect(result.globalProviders.ads).toEqual(globalProviders.ads)
+    expect(result.profileProviders['ads-imported']).toEqual(bundleProviders.ads)
+    expect(result.globalProviders['ads-imported']).toEqual(globalProviders.ads)
+    expect(result.sequence.prepend).toContain('RULE-SET,ads-imported,REJECT')
+  })
+
+  it('keeps both local declarations when a bundled name is skipped', () => {
+    const localProfile: RuleProviderConfigMap = { ads: bundleProviders.ads }
+    const localGlobal: RuleProviderConfigMap = {
+      ads: globalProviders.globalOnly,
+    }
+    const result = mergeScopedBundle(
+      { prepend: [], append: [], delete: [] },
+      localProfile,
+      localGlobal,
+      { sequence, profileProviders: bundleProviders, globalProviders },
+      {
+        ...resolved,
+        providerResolutions: new Map([['ads', { action: 'skip' }]]),
+      },
+    )
+
+    expect(result.profileProviders.ads).toEqual(localProfile.ads)
+    expect(result.globalProviders.ads).toEqual(localGlobal.ads)
+    expect(result.profileProviders.cn).toEqual(bundleProviders.cn)
+    expect(result.globalProviders.globalOnly).toEqual(
+      globalProviders.globalOnly,
+    )
+  })
+
+  it('leaves global declarations alone when importing a legacy profile-only bundle', () => {
+    const existingGlobal: RuleProviderConfigMap = {
+      globalOnly: globalProviders.globalOnly,
+    }
+    const result = mergeScopedBundle(
+      { prepend: [], append: [], delete: [] },
+      {},
+      existingGlobal,
+      { sequence, profileProviders: bundleProviders, globalProviders: {} },
+      resolved,
+    )
+
+    expect(result.profileProviders).toEqual(bundleProviders)
+    expect(result.globalProviders).toEqual(existingGlobal)
   })
 })

@@ -5,13 +5,15 @@ import type { RuleProviderConfigMap } from '@/utils/rule-provider'
  * `major.minor`: a reader refuses a bundle whose major differs, and accepts a
  * higher minor while reporting that unknown fields were ignored.
  */
-export const BUNDLE_FORMAT_VERSION = '1.0'
+export const BUNDLE_FORMAT_VERSION = '1.1'
 export const BUNDLE_FORMAT_MAJOR = 1
-export const BUNDLE_FORMAT_MINOR = 0
+export const BUNDLE_FORMAT_MINOR = 1
 
 export const MANIFEST_ENTRY = 'manifest.json'
 export const RULES_ENTRY = 'rules/sequence.yaml'
 export const PROVIDERS_ENTRY = 'providers/providers.yaml'
+export const PROFILE_PROVIDERS_ENTRY = 'providers/profile.yaml'
+export const GLOBAL_PROVIDERS_ENTRY = 'providers/global.yaml'
 
 export const BUNDLE_GENERATOR_APP = 'clash-verge-rev'
 
@@ -40,7 +42,10 @@ export interface BundleManifest {
 export interface RuleBundle {
   manifest: BundleManifest
   sequence: RuleSequence
+  /** 供没有全局覆写层的客户端使用的有效规则集声明。 */
   providers: RuleProviderConfigMap
+  profileProviders: RuleProviderConfigMap
+  globalProviders: RuleProviderConfigMap
 }
 
 export interface ParsedFormatVersion {
@@ -55,12 +60,6 @@ export function parseFormatVersion(
   const match = /^(\d+)\.(\d+)$/u.exec(raw.trim())
   if (!match) return undefined
   return { major: Number(match[1]), minor: Number(match[2]) }
-}
-
-export const EMPTY_SEQUENCE: RuleSequence = {
-  prepend: [],
-  append: [],
-  delete: [],
 }
 
 export function isSequenceEmpty(sequence: RuleSequence): boolean {

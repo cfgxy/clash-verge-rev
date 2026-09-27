@@ -155,6 +155,7 @@
       "title": "导出规则",
       "fileFilter": "规则包",
       "summary": "将导出 {{ruleCount}} 条自定义规则和 {{providerCount}} 个自定义规则集，不包含订阅自带的规则与规则集。",
+      "scopes": "其中当前订阅 {{profileCount}} 个，全局扩展覆写 {{globalCount}} 个。",
       "subscriptionAddressWarning": "规则包中记录了规则集地址（{{hosts}}），可能包含订阅令牌，请仅分享给可信任的人。",
       "actions": {
         "export": "导出"
@@ -163,6 +164,8 @@
     "importBundle": {
       "title": "导入规则",
       "summary": "来自 {{generator}} 的规则包：{{ruleCount}} 条规则，{{providerCount}} 个规则集。",
+      "globalImpact": "包内有当前订阅规则集 {{profileCount}} 个、全局规则集 {{globalCount}} 个。未跳过的全局声明会写入全局扩展覆写，并影响所有订阅。",
+      "profileShadowed": "全局扩展覆写中已有「{{name}}」。仅覆盖当前订阅的同名规则集不会改变实际生效的全局声明；可以改名导入。",
       "newerMinor": "该规则包由更新版本创建（格式 {{version}}），本版本无法识别的字段已忽略。",
       "policyMappingTitle": "代理策略映射",
       "policyMappingHint": "为规则包中的每个策略选择对应的本地策略；未完成映射的策略对应的规则不会导入。",
