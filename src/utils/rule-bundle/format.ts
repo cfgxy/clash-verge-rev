@@ -62,12 +62,6 @@ export function parseFormatVersion(
   return { major: Number(match[1]), minor: Number(match[2]) }
 }
 
-export const EMPTY_SEQUENCE: RuleSequence = {
-  prepend: [],
-  append: [],
-  delete: [],
-}
-
 export function isSequenceEmpty(sequence: RuleSequence): boolean {
   return (
     sequence.prepend.length === 0 &&
