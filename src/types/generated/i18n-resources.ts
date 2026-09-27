@@ -715,6 +715,7 @@ export interface TranslationResources {
             export: string
           }
           fileFilter: string
+          scopes: string
           subscriptionAddressWarning: string
           summary: string
           title: string
@@ -732,10 +733,12 @@ export interface TranslationResources {
             skipReferenced: string
           }
           conflictTitle: string
+          globalImpact: string
           newerMinor: string
           policyMappingHint: string
           policyMappingTitle: string
           policyRequired: string
+          profileShadowed: string
           providerSourceNotice: string
           summary: string
           title: string

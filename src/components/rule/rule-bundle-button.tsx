@@ -31,26 +31,21 @@ import {
   buildRuleBundle,
   readRuleBundle,
 } from '@/utils/rule-bundle/bundle'
+import { isSequenceEmpty, type RuleBundle } from '@/utils/rule-bundle/format'
 import {
-  EMPTY_SEQUENCE,
-  isSequenceEmpty,
-  type RuleBundle,
-  type RuleSequence,
-} from '@/utils/rule-bundle/format'
-import {
-  mergeBundleIntoMerge,
+  mergeScopedBundle,
   type ResolvedImport,
 } from '@/utils/rule-bundle/import-plan'
 import {
   collectLocalPolicies,
   collectLocalProviderNames,
   type ProfileTexts,
+  readOwnRuleLayer,
 } from '@/utils/rule-bundle/profile-context'
 import {
   collectProviderHosts,
   describeRejection,
 } from '@/utils/rule-bundle/rejection-message'
-import type { RuleProviderConfigMap } from '@/utils/rule-provider'
 import { readTopLevelValue, writeTopLevelValue } from '@/utils/yaml-top-level'
 
 const BUNDLE_EXTENSION = 'zip'
@@ -60,60 +55,45 @@ interface PendingImport {
   producedByNewerMinor: boolean
 }
 
-function readSequence(text: string): RuleSequence {
-  return {
-    prepend: readTopLevelValue<string[]>(text, 'prepend') ?? [],
-    append: readTopLevelValue<string[]>(text, 'append') ?? [],
-    delete: readTopLevelValue<string[]>(text, 'delete') ?? [],
-  }
-}
-
 export const RuleBundleButton = () => {
   const { t } = useTranslation()
   const { current } = useProfiles()
   const { refreshRules, refreshRuleProviders } = useAppRefreshers()
 
-  const [exportPreview, setExportPreview] = useState<{
-    sequence: RuleSequence
-    providers: RuleProviderConfigMap
-  } | null>(null)
+  const [exportPreview, setExportPreview] = useState<ReturnType<
+    typeof readOwnRuleLayer
+  > | null>(null)
   const [pending, setPending] = useState<PendingImport | null>(null)
   const [localPolicies, setLocalPolicies] = useState<string[]>([])
   const [localProviderNames, setLocalProviderNames] = useState<string[]>([])
+  const [localGlobalProviderNames, setLocalGlobalProviderNames] = useState<
+    string[]
+  >([])
 
   const rulesUid = current?.option?.rules
   const mergeUid = current?.option?.merge
   const enabled = Boolean(rulesUid && mergeUid)
 
-  const readOrEmpty = (uid?: string) =>
-    uid ? readProfileFile(uid).catch(() => '') : Promise.resolve('')
+  const readIfPresent = (uid?: string) =>
+    uid ? readProfileFile(uid) : Promise.resolve('')
 
   const loadProfileTexts = async (): Promise<ProfileTexts> => {
     const [base, groups, merge, globalMerge] = await Promise.all([
-      readOrEmpty(current?.uid),
-      readOrEmpty(current?.option?.groups),
-      readOrEmpty(mergeUid),
-      readOrEmpty('Merge'),
+      readIfPresent(current?.uid),
+      readIfPresent(current?.option?.groups),
+      readIfPresent(mergeUid),
+      readProfileFile('Merge'),
     ])
     return { base, groups, merge, globalMerge }
   }
 
-  /**
-   * Only our own layer is packed: the sequence file plus the rule-providers this
-   * subscription's merge file declares. The subscription's own rules and
-   * rule-providers stay out of the bundle.
-   */
   const loadOwnLayer = async () => {
-    const [rulesText, mergeText] = await Promise.all([
-      readOrEmpty(rulesUid),
-      readOrEmpty(mergeUid),
+    const [rulesText, mergeText, globalMergeText] = await Promise.all([
+      readIfPresent(rulesUid),
+      readIfPresent(mergeUid),
+      readProfileFile('Merge'),
     ])
-    return {
-      sequence: readSequence(rulesText),
-      providers:
-        readTopLevelValue<RuleProviderConfigMap>(mergeText, 'rule-providers') ??
-        {},
-    }
+    return readOwnRuleLayer(rulesText, mergeText, globalMergeText)
   }
 
   const handleExportClick = useLockFn(async () => {
@@ -122,7 +102,8 @@ export const RuleBundleButton = () => {
       const own = await loadOwnLayer()
       if (
         isSequenceEmpty(own.sequence) &&
-        Object.keys(own.providers).length === 0
+        Object.keys(own.providers).length === 0 &&
+        Object.keys(own.globalProviders).length === 0
       ) {
         showNotice.info('rules.feedback.notifications.bundle.nothingToExport')
         return
@@ -157,6 +138,7 @@ export const RuleBundleButton = () => {
       const bytes = await buildRuleBundle({
         sequence: own.sequence,
         providers: own.providers,
+        globalProviders: own.globalProviders,
         appVersion: await getVersion(),
       })
       await writeFile(target, bytes)
@@ -187,6 +169,14 @@ export const RuleBundleButton = () => {
       const texts = await loadProfileTexts()
       setLocalPolicies(collectLocalPolicies(texts))
       setLocalProviderNames(collectLocalProviderNames(texts))
+      setLocalGlobalProviderNames(
+        Object.keys(
+          readTopLevelValue<Record<string, unknown>>(
+            texts.globalMerge,
+            'rule-providers',
+          ) ?? {},
+        ),
+      )
       setPending(result)
     } catch (err) {
       if (err instanceof BundleImportError) {
@@ -203,20 +193,21 @@ export const RuleBundleButton = () => {
   const handleImportConfirm = async (resolved: ResolvedImport) => {
     if (!rulesUid || !mergeUid || !pending) return
     try {
-      const [rulesText, mergeText] = await Promise.all([
-        readOrEmpty(rulesUid),
-        readOrEmpty(mergeUid),
+      const [rulesText, mergeText, globalMergeText] = await Promise.all([
+        readProfileFile(rulesUid),
+        readProfileFile(mergeUid),
+        readProfileFile('Merge'),
       ])
-      const currentSequence = rulesText
-        ? readSequence(rulesText)
-        : EMPTY_SEQUENCE
-      const currentProviders =
-        readTopLevelValue<RuleProviderConfigMap>(mergeText, 'rule-providers') ??
-        {}
+      const {
+        sequence: currentSequence,
+        providers: currentProviders,
+        globalProviders: currentGlobalProviders,
+      } = readOwnRuleLayer(rulesText, mergeText, globalMergeText)
 
-      const next = mergeBundleIntoMerge(
+      const next = mergeScopedBundle(
         currentSequence,
         currentProviders,
+        currentGlobalProviders,
         pending.bundle,
         resolved,
       )
@@ -239,14 +230,32 @@ export const RuleBundleButton = () => {
       const nextMergeText = writeTopLevelValue(
         mergeText,
         'rule-providers',
-        Object.keys(next.providers).length > 0 ? next.providers : undefined,
+        Object.keys(next.profileProviders).length > 0
+          ? next.profileProviders
+          : undefined,
       )
+      const hasGlobalImport = Object.keys(pending.bundle.globalProviders).some(
+        (name) => resolved.providerResolutions.get(name)?.action !== 'skip',
+      )
+      const nextGlobalMergeText = hasGlobalImport
+        ? writeTopLevelValue(
+            globalMergeText,
+            'rule-providers',
+            next.globalProviders,
+          )
+        : globalMergeText
 
       if (!(await saveProfileFile(rulesUid, nextRulesText))) {
         throw new Error('save_profile_file rejected the rule sequence')
       }
       if (!(await saveProfileFile(mergeUid, nextMergeText))) {
         throw new Error('save_profile_file rejected the merge document')
+      }
+      if (
+        nextGlobalMergeText !== globalMergeText &&
+        !(await saveProfileFile('Merge', nextGlobalMergeText))
+      ) {
+        throw new Error('save_profile_file rejected the global merge document')
       }
 
       setPending(null)
@@ -264,7 +273,12 @@ export const RuleBundleButton = () => {
   if (!enabled) return null
 
   const exportHosts = exportPreview
-    ? collectProviderHosts(exportPreview.providers)
+    ? [
+        ...new Set([
+          ...collectProviderHosts(exportPreview.providers),
+          ...collectProviderHosts(exportPreview.globalProviders),
+        ]),
+      ]
     : []
 
   return (
@@ -303,10 +317,20 @@ export const RuleBundleButton = () => {
                     exportPreview.sequence.delete.length
                   : 0,
                 providerCount: exportPreview
-                  ? Object.keys(exportPreview.providers).length
+                  ? Object.keys(exportPreview.providers).length +
+                    Object.keys(exportPreview.globalProviders).length
                   : 0,
               })}
             </Typography>
+            {exportPreview && (
+              <Typography variant="body2" color="text.secondary">
+                {t('rules.modals.exportBundle.scopes', {
+                  profileCount: Object.keys(exportPreview.providers).length,
+                  globalCount: Object.keys(exportPreview.globalProviders)
+                    .length,
+                })}
+              </Typography>
+            )}
             {exportHosts.length > 0 && (
               <Alert severity="warning">
                 {t('rules.modals.exportBundle.subscriptionAddressWarning', {
@@ -333,6 +357,7 @@ export const RuleBundleButton = () => {
           producedByNewerMinor={pending.producedByNewerMinor}
           localPolicies={localPolicies}
           localProviderNames={localProviderNames}
+          localGlobalProviderNames={localGlobalProviderNames}
           onClose={() => setPending(null)}
           onConfirm={handleImportConfirm}
         />

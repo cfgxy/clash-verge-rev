@@ -10,8 +10,10 @@ import {
   type BundleManifest,
   collectProxyPolicies,
   countSequenceEntries,
+  GLOBAL_PROVIDERS_ENTRY,
   MANIFEST_ENTRY,
   parseFormatVersion,
+  PROFILE_PROVIDERS_ENTRY,
   PROVIDERS_ENTRY,
   type RuleBundle,
   RULES_ENTRY,
@@ -101,6 +103,7 @@ function normalizeProviderMap(raw: unknown): RuleProviderConfigMap {
 export interface BuildBundleInput {
   sequence: RuleSequence
   providers: RuleProviderConfigMap
+  globalProviders?: RuleProviderConfigMap
   appVersion: string
   createdAt?: Date
 }
@@ -108,6 +111,7 @@ export interface BuildBundleInput {
 export async function buildRuleBundle({
   sequence,
   providers,
+  globalProviders,
   appVersion,
   createdAt = new Date(),
 }: BuildBundleInput): Promise<Uint8Array> {
@@ -121,9 +125,12 @@ export async function buildRuleBundle({
       { lineWidth: -1 },
     ),
   )
-  const providersYaml = encodeUtf8(
-    dump({ 'rule-providers': providers }, { lineWidth: -1 }),
-  )
+  const effectiveProviders = globalProviders
+    ? { ...providers, ...globalProviders }
+    : providers
+  const encodeProviders = (value: RuleProviderConfigMap) =>
+    encodeUtf8(dump({ 'rule-providers': value }, { lineWidth: -1 }))
+  const providersYaml = encodeProviders(effectiveProviders)
 
   const contents: BundleContentEntry[] = [
     {
@@ -134,12 +141,28 @@ export async function buildRuleBundle({
     {
       path: PROVIDERS_ENTRY,
       sha256: await sha256Hex(providersYaml),
-      entryCount: Object.keys(providers).length,
+      entryCount: Object.keys(effectiveProviders).length,
     },
   ]
 
+  const scopedEntries: ZipEntry[] = []
+  if (globalProviders) {
+    for (const [path, value] of [
+      [PROFILE_PROVIDERS_ENTRY, providers],
+      [GLOBAL_PROVIDERS_ENTRY, globalProviders],
+    ] as const) {
+      const data = encodeProviders(value)
+      contents.push({
+        path,
+        sha256: await sha256Hex(data),
+        entryCount: Object.keys(value).length,
+      })
+      scopedEntries.push({ name: path, data })
+    }
+  }
+
   const manifest: BundleManifest = {
-    formatVersion: BUNDLE_FORMAT_VERSION,
+    formatVersion: globalProviders ? BUNDLE_FORMAT_VERSION : '1.0',
     generator: { app: BUNDLE_GENERATOR_APP, version: appVersion },
     createdAt: createdAt.toISOString(),
     proxyPolicies: collectProxyPolicies(sequence),
@@ -153,6 +176,7 @@ export async function buildRuleBundle({
     },
     { name: RULES_ENTRY, data: sequenceYaml },
     { name: PROVIDERS_ENTRY, data: providersYaml },
+    ...scopedEntries,
   ]
   return createZipArchive(entries)
 }
@@ -266,14 +290,17 @@ function parseSequence(bytes: Uint8Array): RuleSequence {
   }
 }
 
-function parseProviders(bytes: Uint8Array): RuleProviderConfigMap {
+function parseProviders(
+  bytes: Uint8Array,
+  path: string = PROVIDERS_ENTRY,
+): RuleProviderConfigMap {
   let parsed: unknown
   try {
     parsed = load(decodeUtf8(bytes))
   } catch (err) {
     throw new BundleImportError({
       kind: 'content-invalid',
-      path: PROVIDERS_ENTRY,
+      path,
       detail: String(err instanceof Error ? err.message : err),
     })
   }
@@ -281,7 +308,7 @@ function parseProviders(bytes: Uint8Array): RuleProviderConfigMap {
   if (typeof parsed !== 'object' || Array.isArray(parsed)) {
     throw new BundleImportError({
       kind: 'content-invalid',
-      path: PROVIDERS_ENTRY,
+      path,
       detail: 'provider document is not a YAML mapping',
     })
   }
@@ -331,15 +358,66 @@ export async function readRuleBundle(
   const sequence = parseSequence(
     await takeVerifiedContent(entries, manifest, RULES_ENTRY),
   )
+  const hasScopedProviders =
+    version?.minor === 1 ||
+    entries.has(PROFILE_PROVIDERS_ENTRY) ||
+    entries.has(GLOBAL_PROVIDERS_ENTRY)
+  if (hasScopedProviders) {
+    for (const path of [
+      PROVIDERS_ENTRY,
+      PROFILE_PROVIDERS_ENTRY,
+      GLOBAL_PROVIDERS_ENTRY,
+    ]) {
+      if (!manifest.contents.some((entry) => entry.path === path)) {
+        throw new BundleImportError({ kind: 'content-missing', path })
+      }
+    }
+  }
   const providersBytes = entries.get(PROVIDERS_ENTRY)
-  const providers = providersBytes
-    ? parseProviders(
-        await takeVerifiedContent(entries, manifest, PROVIDERS_ENTRY),
+  const providers =
+    providersBytes || hasScopedProviders
+      ? parseProviders(
+          await takeVerifiedContent(entries, manifest, PROVIDERS_ENTRY),
+        )
+      : {}
+
+  let profileProviders = providers
+  let globalProviders: RuleProviderConfigMap = {}
+  if (hasScopedProviders) {
+    profileProviders = parseProviders(
+      await takeVerifiedContent(entries, manifest, PROFILE_PROVIDERS_ENTRY),
+      PROFILE_PROVIDERS_ENTRY,
+    )
+    globalProviders = parseProviders(
+      await takeVerifiedContent(entries, manifest, GLOBAL_PROVIDERS_ENTRY),
+      GLOBAL_PROVIDERS_ENTRY,
+    )
+    const effectiveProviders = { ...profileProviders, ...globalProviders }
+    const names = Object.keys(effectiveProviders)
+    if (
+      names.length !== Object.keys(providers).length ||
+      names.some(
+        (name) =>
+          JSON.stringify(effectiveProviders[name]) !==
+          JSON.stringify(providers[name]),
       )
-    : {}
+    ) {
+      throw new BundleImportError({
+        kind: 'content-invalid',
+        path: PROVIDERS_ENTRY,
+        detail: 'effective providers do not match the scoped declarations',
+      })
+    }
+  }
 
   return {
-    bundle: { manifest, sequence, providers },
+    bundle: {
+      manifest,
+      sequence,
+      providers,
+      profileProviders,
+      globalProviders,
+    },
     producedByNewerMinor: (version?.minor ?? 0) > BUNDLE_FORMAT_MINOR,
   }
 }

@@ -17,6 +17,7 @@ import { useTranslation } from 'react-i18next'
 
 import type { RuleBundle } from '@/utils/rule-bundle/format'
 import {
+  findInvalidProviderRenames,
   isMappingComplete,
   type PolicyMappingTarget,
   prepareImport,
@@ -31,6 +32,7 @@ interface Props {
   producedByNewerMinor: boolean
   localPolicies: string[]
   localProviderNames: string[]
+  localGlobalProviderNames: string[]
   onClose: () => void
   onConfirm: (resolved: ResolvedImport) => Promise<void>
 }
@@ -43,6 +45,7 @@ export const RuleBundleImportDialog = ({
   producedByNewerMinor,
   localPolicies,
   localProviderNames,
+  localGlobalProviderNames,
   onClose,
   onConfirm,
 }: Props) => {
@@ -79,21 +82,13 @@ export const RuleBundleImportDialog = ({
     ),
   )
 
-  const takenNames = useMemo(
-    () => new Set(localProviderNames),
-    [localProviderNames],
-  )
-
   const invalidRenames = useMemo(
     () =>
-      preparation.providerConflicts
-        .filter(({ name }) => actions[name] === 'rename')
-        .filter(({ name }) => {
-          const next = (newNames[name] ?? '').trim()
-          return !next || takenNames.has(next)
-        })
-        .map(({ name }) => name),
-    [actions, newNames, preparation.providerConflicts, takenNames],
+      findInvalidProviderRenames(actions, newNames, [
+        ...localProviderNames,
+        ...Object.keys(bundle.providers),
+      ]),
+    [actions, newNames, localProviderNames, bundle.providers],
   )
 
   const handleConfirm = useLockFn(async () => {
@@ -116,7 +111,12 @@ export const RuleBundleImportDialog = ({
     await onConfirm({ policyMap, providerResolutions })
   })
 
-  const hosts = collectProviderHosts(bundle.providers)
+  const hosts = [
+    ...new Set([
+      ...collectProviderHosts(bundle.profileProviders),
+      ...collectProviderHosts(bundle.globalProviders),
+    ]),
+  ]
 
   return (
     <Dialog open={open} onClose={onClose} maxWidth="sm" fullWidth>
@@ -131,9 +131,20 @@ export const RuleBundleImportDialog = ({
                 bundle.sequence.prepend.length +
                 bundle.sequence.append.length +
                 bundle.sequence.delete.length,
-              providerCount: Object.keys(bundle.providers).length,
+              providerCount:
+                Object.keys(bundle.profileProviders).length +
+                Object.keys(bundle.globalProviders).length,
             })}
           </Typography>
+
+          {Object.keys(bundle.globalProviders).length > 0 && (
+            <Alert severity="warning">
+              {t('rules.modals.importBundle.globalImpact', {
+                profileCount: Object.keys(bundle.profileProviders).length,
+                globalCount: Object.keys(bundle.globalProviders).length,
+              })}
+            </Alert>
+          )}
 
           {producedByNewerMinor && (
             <Alert severity="info">
@@ -247,6 +258,16 @@ export const RuleBundleImportDialog = ({
                             rules: conflict.referencingRules.join('; '),
                           },
                         )}
+                      </Alert>
+                    )}
+                  {actions[conflict.name] === 'overwrite' &&
+                    bundle.profileProviders[conflict.name] &&
+                    !bundle.globalProviders[conflict.name] &&
+                    localGlobalProviderNames.includes(conflict.name) && (
+                      <Alert severity="info">
+                        {t('rules.modals.importBundle.profileShadowed', {
+                          name: conflict.name,
+                        })}
                       </Alert>
                     )}
                 </Stack>

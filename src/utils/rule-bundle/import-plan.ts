@@ -91,6 +91,26 @@ export function isMappingComplete(mappings: PolicyMappingTarget[]): boolean {
   return mappings.every((mapping) => Boolean(mapping.targetPolicy))
 }
 
+export function findInvalidProviderRenames(
+  actions: Record<string, ProviderConflictResolution['action']>,
+  newNames: Record<string, string>,
+  takenNames: string[],
+): string[] {
+  const taken = new Set(takenNames)
+  const targets = Object.entries(actions)
+    .filter(([, action]) => action === 'rename')
+    .map(([name]) => [name, (newNames[name] ?? '').trim()] as const)
+  const counts = new Map<string, number>()
+  for (const [, target] of targets) {
+    counts.set(target, (counts.get(target) ?? 0) + 1)
+  }
+  return targets
+    .filter(
+      ([, target]) => !target || taken.has(target) || counts.get(target)! > 1,
+    )
+    .map(([name]) => name)
+}
+
 /** Replaces the policy field of a rule line, leaving a trailing `no-resolve` in place. */
 export function applyPolicyToRuleLine(
   ruleLine: string,
@@ -136,6 +156,12 @@ export interface MergeResult {
   providers: RuleProviderConfigMap
 }
 
+export interface ScopedMergeResult {
+  sequence: RuleSequence
+  profileProviders: RuleProviderConfigMap
+  globalProviders: RuleProviderConfigMap
+}
+
 function mergeRuleList(existing: string[], incoming: string[]): string[] {
   const seen = new Set(existing)
   const merged = [...existing]
@@ -147,17 +173,12 @@ function mergeRuleList(existing: string[], incoming: string[]): string[] {
   return merged
 }
 
-/**
- * Produces the merge file's next state. Rewriting happens before dedup so a
- * bundled rule that becomes identical to an existing one after mapping is
- * recognized as a duplicate rather than appended twice.
- */
-export function mergeBundleIntoMerge(
+/** 先映射与改名再去重，避免把映射后相同的规则重复写入。 */
+function mergeSequence(
   current: RuleSequence,
-  currentProviders: RuleProviderConfigMap,
-  bundle: { sequence: RuleSequence; providers: RuleProviderConfigMap },
+  incoming: RuleSequence,
   resolved: ResolvedImport,
-): MergeResult {
+): RuleSequence {
   const renames = new Map<string, string>()
   for (const [name, resolution] of resolved.providerResolutions) {
     if (resolution.action === 'rename') renames.set(name, resolution.newName)
@@ -176,8 +197,27 @@ export function mergeBundleIntoMerge(
       renames,
     )
 
-  const providers: RuleProviderConfigMap = { ...currentProviders }
-  for (const [name, config] of Object.entries(bundle.providers)) {
+  return {
+    prepend: mergeRuleList(
+      current.prepend,
+      incoming.prepend.filter(mapped).map(rewrite),
+    ),
+    append: mergeRuleList(
+      current.append,
+      incoming.append.filter(mapped).map(rewrite),
+    ),
+    // `delete` 匹配订阅原始规则行，不参与策略映射或规则集改名。
+    delete: mergeRuleList(current.delete, incoming.delete),
+  }
+}
+
+function mergeProviders(
+  current: RuleProviderConfigMap,
+  incoming: RuleProviderConfigMap,
+  resolved: ResolvedImport,
+): RuleProviderConfigMap {
+  const providers: RuleProviderConfigMap = { ...current }
+  for (const [name, config] of Object.entries(incoming)) {
     const resolution = resolved.providerResolutions.get(name)
     if (resolution?.action === 'skip') continue
     if (resolution?.action === 'rename') {
@@ -186,21 +226,43 @@ export function mergeBundleIntoMerge(
     }
     providers[name] = config
   }
+  return providers
+}
 
+export function mergeBundleIntoMerge(
+  current: RuleSequence,
+  currentProviders: RuleProviderConfigMap,
+  bundle: { sequence: RuleSequence; providers: RuleProviderConfigMap },
+  resolved: ResolvedImport,
+): MergeResult {
   return {
-    sequence: {
-      prepend: mergeRuleList(
-        current.prepend,
-        bundle.sequence.prepend.filter(mapped).map(rewrite),
-      ),
-      append: mergeRuleList(
-        current.append,
-        bundle.sequence.append.filter(mapped).map(rewrite),
-      ),
-      // `delete` entries match the subscription's own rule lines verbatim, so
-      // neither the policy mapping nor a provider rename applies to them.
-      delete: mergeRuleList(current.delete, bundle.sequence.delete),
-    },
-    providers,
+    sequence: mergeSequence(current, bundle.sequence, resolved),
+    providers: mergeProviders(currentProviders, bundle.providers, resolved),
+  }
+}
+
+export function mergeScopedBundle(
+  current: RuleSequence,
+  currentProfileProviders: RuleProviderConfigMap,
+  currentGlobalProviders: RuleProviderConfigMap,
+  bundle: {
+    sequence: RuleSequence
+    profileProviders: RuleProviderConfigMap
+    globalProviders: RuleProviderConfigMap
+  },
+  resolved: ResolvedImport,
+): ScopedMergeResult {
+  return {
+    sequence: mergeSequence(current, bundle.sequence, resolved),
+    profileProviders: mergeProviders(
+      currentProfileProviders,
+      bundle.profileProviders,
+      resolved,
+    ),
+    globalProviders: mergeProviders(
+      currentGlobalProviders,
+      bundle.globalProviders,
+      resolved,
+    ),
   }
 }

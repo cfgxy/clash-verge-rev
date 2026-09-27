@@ -155,6 +155,7 @@
       "title": "匯出規則",
       "fileFilter": "規則包",
       "summary": "將匯出 {{ruleCount}} 條自訂規則和 {{providerCount}} 個自訂規則集，不包含訂閱自帶的規則與規則集。",
+      "scopes": "其中目前訂閱 {{profileCount}} 個，全域擴充覆寫 {{globalCount}} 個。",
       "subscriptionAddressWarning": "規則包中記錄了規則集位址（{{hosts}}），可能包含訂閱權杖，請僅分享給可信任的人。",
       "actions": {
         "export": "匯出"
@@ -163,6 +164,8 @@
     "importBundle": {
       "title": "匯入規則",
       "summary": "來自 {{generator}} 的規則包：{{ruleCount}} 條規則，{{providerCount}} 個規則集。",
+      "globalImpact": "包內有目前訂閱規則集 {{profileCount}} 個、全域規則集 {{globalCount}} 個。未跳過的全域宣告會寫入全域擴充覆寫，並影響所有訂閱。",
+      "profileShadowed": "全域擴充覆寫中已有「{{name}}」。僅覆寫目前訂閱的同名規則集不會改變實際生效的全域宣告；可以改名匯入。",
       "newerMinor": "該規則包由較新版本建立（格式 {{version}}），本版本無法識別的欄位已忽略。",
       "policyMappingTitle": "代理策略對應",
       "policyMappingHint": "為規則包中的每個策略選擇對應的本機策略；未完成對應的策略所屬規則不會匯入。",
